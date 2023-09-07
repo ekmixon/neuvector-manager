@@ -15,10 +15,8 @@ def _list_domain_display_format(d):
     f = "labels"
     if d.get(f):
         fo = output.key_output(f)
-        kv = ""
         keys = sorted(d[f].keys())
-        for key in keys:
-            kv += "%s=%s\n" % (key, d[f][key])
+        kv = "".join("%s=%s\n" % (key, d[f][key]) for key in keys)
         d[fo] = kv.rstrip("\n")
 
 
@@ -32,7 +30,7 @@ def show_domain(ctx, data, page):
 
     while True:
         domains = data.client.list("domain", "domain", **args)
-        if domains == None:
+        if domains is None:
             break
 
         for domain in domains:

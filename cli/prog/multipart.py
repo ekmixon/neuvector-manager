@@ -43,7 +43,7 @@ class MultiDict(DictMixin):
     """
 
     def __init__(self, *args, **kwargs):
-        self.dict = dict()
+        self.dict = {}
         for k, v in dict(*args, **kwargs).items():
             self[k] = v
 
@@ -117,9 +117,9 @@ def copy_file(stream, target, maxread=-1, buffer_size=2 * 16):
 
 
 _special = re.escape('()<>@,;:"\\/[]?={} \t')
-_re_special = re.compile(r'[%s]' % _special)
+_re_special = re.compile(f'[{_special}]')
 _quoted_string = r'"(?:\\.|[^"])*"'  # Quoted string
-_value = r'(?:[^%s]+|%s)' % (_special, _quoted_string)  # Save or quoted string
+_value = f'(?:[^{_special}]+|{_quoted_string})'
 _option = r'(?:;|^)\s*([^%s]+)\s*=\s*(%s)' % (_special, _value)
 _re_option = re.compile(_option)  # key=value part of an Content-Type like header
 
@@ -206,9 +206,7 @@ class MultipartParser(object):
         if not self._part_iter:
             self._part_iter = self._iterparse()
 
-        for part in self._done:
-            yield part
-
+        yield from self._done
         for part in self._part_iter:
             self._done.append(part)
             yield part
@@ -358,10 +356,7 @@ class MultipartPart(object):
         self.buffer_size = buffer_size
 
     def feed(self, line, nl=""):
-        if self.file:
-            return self.write_body(line, nl)
-
-        return self.write_header(line, nl)
+        return self.write_body(line, nl) if self.file else self.write_header(line, nl)
 
     def write_header(self, line, nl):
         line = line.decode(self.charset)

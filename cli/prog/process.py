@@ -43,14 +43,16 @@ def show_process_profile(ctx, data, scope, page, sort_dir):
         return
 
     args = {'start': 0, 'limit': page}
-    if scope == 'fed' or scope == 'local':
+    if scope in ['fed', 'local']:
         args['scope'] = scope
 
     # args = {'sort': "group", 'sort_dir': sort_dir, 'start': 0, 'limit': page}
     while True:
         pfs = data.client.list("process_profile", "process_profile", **args)
         for p in pfs:
-            click.echo("Group: %s, Mode: %s, Baseline: %s" % (p["group"], p["mode"], p["baseline"]))
+            click.echo(
+                f'Group: {p["group"]}, Mode: {p["mode"]}, Baseline: {p["baseline"]}'
+            )
             columns = ("name", "path", "user", "action", "type", "uuid", "allow_update")
             for r in p["process_list"]:
                 _list_profile_display_format(r)
@@ -77,9 +79,9 @@ def group(data, group):
     for r in profile["process_list"]:
         _list_profile_display_format(r)
 
-    click.echo("Mode: %s" % profile["mode"])
+    click.echo(f'Mode: {profile["mode"]}')
     if profile["baseline"] != "":
-        click.echo("Baseline: %s" % profile["baseline"])
+        click.echo(f'Baseline: {profile["baseline"]}')
 
     columns = ("name", "path", "user", "action", "type", "uuid", "allow_update")
     output.list(columns, profile["process_list"])
@@ -106,12 +108,12 @@ def set_process_profile(data, group, path, name, user, action, disable_alert, ba
     """Set process profile. """
 
     cfg = {"group": group}
-    if name == None and disable_alert == None and baseline == None:
+    if name is None and disable_alert is None and baseline is None:
         click.echo("Missing config")
         return
 
     if name != None:
-        if action == None:
+        if action is None:
             click.echo("Rule must have an action")
             return
         cfg["process_change_list"] = [
@@ -159,7 +161,7 @@ def delete_process_profile(data, group, path, name, user):
 def show_process_rule(data, uuid):
     """Show process from uuid."""
     args = {'limit': 1}
-    rules = data.client.list("process_rules/%s" % uuid, "process_rule", **args)
+    rules = data.client.list(f"process_rules/{uuid}", "process_rule", **args)
     if len(rules) != 1:
         click.echo("\nNot found: %s" % uuid)
         return

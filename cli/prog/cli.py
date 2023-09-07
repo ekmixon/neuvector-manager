@@ -29,7 +29,7 @@ class CtxData(object):
         else:
             self.port = 10443
 
-        url = "https://%s:%s" % (self.server_ip, self.port)
+        url = f"https://{self.server_ip}:{self.port}"
         self.client = client.RestClient(url, debug)
 
 
@@ -37,10 +37,7 @@ def init_context_data(debug, server, port):
     global ctx_data
 
     ctx_data = CtxData(debug, server, port)
-    if not ctx_data.client:
-        return None
-    else:
-        return ctx_data
+    return None if not ctx_data.client else ctx_data
 
 
 CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])

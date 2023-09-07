@@ -28,7 +28,7 @@ def _scanner_list_display_format(scanner):
 def _vuln_list_display_format(report, vuln):
     f = "scores"
     fo = output.key_output(f)
-    vuln[fo] = "%s/%s" % (vuln["score"], vuln["score_v3"])
+    vuln[fo] = f'{vuln["score"]}/{vuln["score_v3"]}'
     vuln["counts"] = "%d:%d:%d:%d" % (
     len(vuln["platforms"]), len(vuln["workloads"]), len(vuln["nodes"]), len(vuln["images"]))
 
@@ -61,15 +61,9 @@ def _vuln_list_display_format(report, vuln):
 
 def _vuln_profile_list_display_format(e):
     f = "domains"
-    if e.get(f):
-        e[output.key_output(f)] = ",".join(e[f])
-    else:
-        e[output.key_output(f)] = ""
+    e[output.key_output(f)] = ",".join(e[f]) if e.get(f) else ""
     f = "images"
-    if e.get(f):
-        e[output.key_output(f)] = ",".join(e[f])
-    else:
-        e[output.key_output(f)] = ""
+    e[output.key_output(f)] = ",".join(e[f]) if e.get(f) else ""
 
 
 @show.group('scan')
@@ -84,10 +78,7 @@ def config(data):
     """Show scan config"""
     cfg = data.client.show("scan", "config", "config")
     column_map = (("auto_scan", "auto"),)
-    if cfg["auto_scan"] == True:
-        cfg["auto_scan"] = "enable"
-    else:
-        cfg["auto_scan"] = "disable"
+    cfg["auto_scan"] = "enable" if cfg["auto_scan"] == True else "disable"
     output.show_with_map(column_map, cfg)
 
 
@@ -144,7 +135,7 @@ def image(data, page, sort, sort_dir):
 
     while True:
         images = data.client.list("scan/image", "image", **args)
-        if images == None:
+        if images is None:
             break
 
         for img in images:
@@ -169,7 +160,7 @@ def image(data, page, sort, sort_dir):
 def platform(data):
     """Show scan platform summary"""
     platforms = data.client.list("scan/platform", "platform", None)
-    if platforms == None:
+    if platforms is None:
         return
 
     for n in platforms:
@@ -192,7 +183,7 @@ def container(data, id_or_name):
     """Show scan container detail report"""
 
     obj = utils.get_managed_object(data.client, "workload", "workload", id_or_name)
-    if obj == None:
+    if obj is None:
         return
 
     report = data.client.show("scan/workload", "report", obj["id"])
@@ -222,7 +213,7 @@ def node(data, id_or_name):
     """Show scan node detail report"""
 
     obj = utils.get_managed_object(data.client, "host", "host", id_or_name)
-    if obj == None:
+    if obj is None:
         return
 
     report = data.client.show("scan/host", "report", obj["id"])
@@ -393,7 +384,7 @@ def request_scan(data):
 def container(data, id_or_name):
     """Request to scan one container"""
     obj = utils.get_managed_object(data.client, "workload", "workload", id_or_name)
-    if obj == None:
+    if obj is None:
         return
 
     data.client.request("scan", "workload", obj["id"], None)
@@ -405,7 +396,7 @@ def container(data, id_or_name):
 def node(data, id_or_name):
     """Request to scan one node"""
     obj = utils.get_managed_object(data.client, "host", "host", id_or_name)
-    if obj == None:
+    if obj is None:
         return
 
     data.client.request("scan", "host", obj["id"], None)

@@ -24,20 +24,15 @@ CriteriaOpNotRegex = "!regex"
 def get_groups(data, scope, args):
     """Get groups."""
     groups = {}
-    if scope == 'fed' or scope == 'local':
+    if scope in ['fed', 'local']:
         args["scope"] = scope
 
-    groups = data.client.list("group", "group", **args)
-
-    return groups
+    return data.client.list("group", "group", **args)
 
 
 def _list_group_display_format(group):
     group["type"] = client.CfgTypeDisplay[group["cfg_type"]]
-    if group["cfg_type"] == "federal":
-        group["scope"] = "fed"
-    else:
-        group["scope"] = "local"
+    group["scope"] = "fed" if group["cfg_type"] == "federal" else "local"
     f = "members"
     if f in group:
         fo = output.key_output(f)
@@ -112,16 +107,20 @@ def show_group(ctx, data, brief, cap, scope, page, sort, sort_dir, filter_type):
     if sort == "scope":
         click.echo("scope field cannot be used as sort option value")
         return
-    args = {'sort': sort, 'sort_dir': sort_dir, 'brief': brief, 'with_cap': cap}
-    args["start"] = 0
-    args["limit"] = page
-
+    args = {
+        'sort': sort,
+        'sort_dir': sort_dir,
+        'brief': brief,
+        'with_cap': cap,
+        "start": 0,
+        "limit": page,
+    }
     if filter_type:
         args['kind'] = utils.filter_value_include(filter_type)
 
     while True:
         groups = get_groups(data, scope, args)
-        if groups == None:
+        if groups is None:
             break
 
         for group in groups:
@@ -169,10 +168,7 @@ def _list_dlp_group_display_format(group):
     else:
         fo = output.key_output(f)
         s = ""
-        if group[f]:
-            s = "enable"
-        else:
-            s = "disable"
+        s = "enable" if group[f] else "disable"
         group[fo] = s
     if "cfg_type" in group:
         group["type"] = client.CfgTypeDisplay[group["cfg_type"]]
@@ -182,12 +178,13 @@ def _list_dlp_group_display_format(group):
         group[fo] = ""
     if f in group:
         fo = output.key_output(f)
-        s = ""
-        for sen in group[f]:
-            if "comment" not in sen:
-                s += "(\"%s\", %s)\n" % (sen["name"], sen["action"])
-            else:
-                s += "(\"%s\", %s, \"%s\")\n" % (sen["name"], sen["action"], sen["comment"])
+        s = "".join(
+            "(\"%s\", %s)\n" % (sen["name"], sen["action"])
+            if "comment" not in sen
+            else "(\"%s\", %s, \"%s\")\n"
+            % (sen["name"], sen["action"], sen["comment"])
+            for sen in group[f]
+        )
         group[fo] = s.rstrip("\n")
 
 
@@ -205,7 +202,7 @@ def show_group_dlp(ctx, data, page, sort_dir):
     args = {'start': 0, 'limit': page}
     while True:
         drs = data.client.list("dlp/group", "dlp_group", **args)
-        if drs == None:
+        if drs is None:
             break
         for dr in drs:
             _list_dlp_group_display_format(dr)
@@ -253,10 +250,7 @@ def _list_waf_group_display_format(group):
     else:
         fo = output.key_output(f)
         s = ""
-        if group[f]:
-            s = "enable"
-        else:
-            s = "disable"
+        s = "enable" if group[f] else "disable"
         group[fo] = s
     if "cfg_type" in group:
         group["type"] = client.CfgTypeDisplay[group["cfg_type"]]
@@ -297,7 +291,7 @@ def show_group_waf(ctx, data, page, sort_dir):
     args = {'start': 0, 'limit': page}
     while True:
         drs = data.client.list("waf/group", "waf_group", **args)
-        if drs == None:
+        if drs is None:
             break
         for dr in drs:
             _list_waf_group_display_format(dr)
@@ -351,7 +345,7 @@ def _add_criterion(key, value):
     v = value
     op = CriteriaOpEqual
 
-    if key == "label":
+    if k == "label":
         try:
             k, v = value.split("!=")
             op = CriteriaOpNotEqual
@@ -377,26 +371,24 @@ def _add_criterion(key, value):
                                 op = CriteriaOpRegex
                             except ValueError:
                                 return None
-    else:
-        # Empty value is allowed.
-        if len(v) > 0:
-            if v[0] == '=':
-                v = v[1:]
-            elif len(v) > 1 and v[0] == '!' and v[1] == '=':
-                op = CriteriaOpNotEqual
-                v = v[2:]
-            elif v[0] == '@':
-                op = CriteriaOpContains
-                v = v[1:]
-            elif v[0] == '^':
-                op = CriteriaOpPrefix
-                v = v[1:]
-            elif v[0] == '~':
-                op = CriteriaOpRegex
-                v = v[1:]
-            elif len(v) > 1 and v[0] == '!' and v[1] == '~':
-                op = CriteriaOpNotRegex
-                v = v[2:]
+    elif len(v) > 0:
+        if v[0] == '=':
+            v = v[1:]
+        elif len(v) > 1 and v[0] == '!' and v[1] == '=':
+            op = CriteriaOpNotEqual
+            v = v[2:]
+        elif v[0] == '@':
+            op = CriteriaOpContains
+            v = v[1:]
+        elif v[0] == '^':
+            op = CriteriaOpPrefix
+            v = v[1:]
+        elif v[0] == '~':
+            op = CriteriaOpRegex
+            v = v[1:]
+        elif len(v) > 1 and v[0] == '!' and v[1] == '~':
+            op = CriteriaOpNotRegex
+            v = v[2:]
 
     return {"key": k, "value": v, "op": op}
 
@@ -405,7 +397,7 @@ def _add_criteria(ct, key, values):
     for v in values:
         e = _add_criterion(key, v)
         if not e:
-            click.echo("Error: Invalid input of --%s %s" % (key, v))
+            click.echo(f"Error: Invalid input of --{key} {v}")
             return False
         ct.append(e)
     return True
@@ -448,14 +440,11 @@ def create_group(data, name, scope, image, node, domain, container, service, lab
     if not _add_criteria(ct, "address", address):
         return
 
-    if len(ct) == 0:
+    if not ct:
         click.echo("Error: Must create group with criteria.")
         return
 
-    cfg_type = client.UserCreatedCfg
-    if scope == "fed":
-        cfg_type = client.FederalCfg
-
+    cfg_type = client.FederalCfg if scope == "fed" else client.UserCreatedCfg
     data.client.create("group", {"config": {"name": name, "criteria": ct, "cfg_type": cfg_type}})
 
 
@@ -476,9 +465,7 @@ def set_group(ctx, data, name):
 @click.option('--service', multiple=True, help="container service name.")
 @click.option('--label', multiple=True, help="container label.")
 @click.option('--address', multiple=True, help="ip address range list.")
-# @click.option("--dlp", type=click.Choice(['enable', 'disable']), default=None, help="dlp status")
 @click.pass_obj
-# def set_group_setting(data, image, node, domain, container, service, label, address, dlp):
 def set_group_setting(data, image, node, domain, container, service, label, address):
     """Set group configuration.
 
@@ -505,7 +492,7 @@ def set_group_setting(data, image, node, domain, container, service, label, addr
         return
 
     group = {"name": data.id_or_name}
-    if len(ct) > 0:
+    if ct:
         group["criteria"] = ct
     # if dlp != None:
     #    group["dlp_status"] = dlp == "enable"
@@ -520,8 +507,7 @@ def set_group_setting(data, image, node, domain, container, service, label, addr
 @click.pass_obj
 def set_group_dlp(data, status, sensor, action):
     """Set group dlp sensor."""
-    cfg = []
-    cfg.append({"name": sensor, "action": action})
+    cfg = [{"name": sensor, "action": action}]
     group = {"name": data.id_or_name, "status": status == 'enable', "sensors": cfg}
     data.client.config("dlp/group", data.id_or_name, {"config": group})
 
@@ -533,8 +519,7 @@ def set_group_dlp(data, status, sensor, action):
 @click.pass_obj
 def set_group_waf(data, status, sensor, action):
     """Set group waf sensor."""
-    cfg = []
-    cfg.append({"name": sensor, "action": action})
+    cfg = [{"name": sensor, "action": action}]
     group = {"name": data.id_or_name, "status": status == 'enable', "sensors": cfg}
     data.client.config("waf/group", data.id_or_name, {"config": group})
 
@@ -555,8 +540,7 @@ def unset_group(ctx, data, name):
 @click.pass_obj
 def unset_group_dlp(data, status, sensor):
     """Unset group dlp sensor."""
-    cfg = []
-    cfg.append(sensor)
+    cfg = [sensor]
     group = {"name": data.id_or_name, "status": status == 'enable', "delete": cfg}
     data.client.config("dlp/group", data.id_or_name, {"config": group})
 
@@ -567,8 +551,7 @@ def unset_group_dlp(data, status, sensor):
 @click.pass_obj
 def unset_group_waf(data, status, sensor):
     """Unset group waf sensor."""
-    cfg = []
-    cfg.append(sensor)
+    cfg = [sensor]
     group = {"name": data.id_or_name, "status": status == 'enable', "delete": cfg}
     data.client.config("waf/group", data.id_or_name, {"config": group})
 
@@ -609,8 +592,8 @@ def _list_service_display_format(service):
 
 
 def _show_service_display_format(service):
+    f = "id"
     for wl in service["members"]:
-        f = "id"
         if wl.get(f):
             fo = output.key_output(f)
             wl[fo] = wl[f][:output.SHORT_ID_LENGTH]
@@ -632,13 +615,16 @@ def show_service(ctx, data, cap, page, sort, sort_dir):
     if ctx.invoked_subcommand is not None:
         return
 
-    args = {'sort': sort, 'sort_dir': sort_dir, 'with_cap': cap}
-    args["start"] = 0
-    args["limit"] = page
-
+    args = {
+        'sort': sort,
+        'sort_dir': sort_dir,
+        'with_cap': cap,
+        "start": 0,
+        "limit": page,
+    }
     while True:
         services = data.client.list("service", "service", **args)
-        if services == None:
+        if services is None:
             break
 
         for service in services:
@@ -673,12 +659,12 @@ def detail(data, id_or_name, cap):
 
     _show_service_display_format(service)
 
-    click.echo("Policy mode: %s" % service["policy_mode"])
-    click.echo("Profile mode: %s" % service["profile_mode"])
+    click.echo(f'Policy mode: {service["policy_mode"]}')
+    click.echo(f'Profile mode: {service["profile_mode"]}')
     click.echo("Total members: %d" % len(service["members"]))
     columns = ("id", "name", "state")
     output.list(columns, service["members"])
-    click.echo("Total policies: %s" % len(service["policy_rules"]))
+    click.echo(f'Total policies: {len(service["policy_rules"])}')
     columns = ("id", "from", "to", "applications", "ports", "action", "learned", "status", "platform_role")
     output.list(columns, service["policy_rules"])
 

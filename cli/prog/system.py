@@ -126,13 +126,17 @@ def _show_system_setting_display_format(s):
     f = "registry_http_proxy"
     if s.get(f):
         if s[f].get("username"):
-            s[output.key_output(f)] = s[f]["url"].replace("//", "//%s:%s@" % (s[f]["username"], s[f]["username"]))
+            s[output.key_output(f)] = s[f]["url"].replace(
+                "//", f'//{s[f]["username"]}:{s[f]["username"]}@'
+            )
         else:
             s[output.key_output(f)] = s[f]["url"]
     f = "registry_https_proxy"
     if s.get(f):
         if s[f].get("username"):
-            s[output.key_output(f)] = s[f]["url"].replace("//", "//%s:%s@" % (s[f]["username"], s[f]["username"]))
+            s[output.key_output(f)] = s[f]["url"].replace(
+                "//", f'//{s[f]["username"]}:{s[f]["username"]}@'
+            )
         else:
             s[output.key_output(f)] = s[f]["url"]
 
@@ -192,15 +196,12 @@ def showLocalSystemConfig(data, scope):
         conf["syslog_protocol"] = "TCP/TLS"
         cert = conf["syslog_server_cert"]
         if cert[len(cert)-1] == '\n':
-            conf["syslog_server_cert"] = cert[0:len(cert)-1]
+            conf["syslog_server_cert"] = cert[:-1]
     elif conf["syslog_ip_proto"] == 17:
         conf["syslog_protocol"] = "UDP"
 
     conf["ibmsa_ep"] = ""
-    if conf["ibmsa_ep_start"] == 1:
-        conf["ibmsa_ep_start"] = True
-    else:
-        conf["ibmsa_ep_start"] = False
+    conf["ibmsa_ep_start"] = conf["ibmsa_ep_start"] == 1
     column_map += (("ibmsa_ep", "Integrate with IBM Security Advisor"),
                    ("ibmsa_ep_enabled", "       Enabled"),
                    ("ibmsa_ep_start", "       Setup done"),
@@ -271,9 +272,9 @@ def showLocalSystemConfig(data, scope):
     scannerAutoscaleStrategy = "Disabled"
     minScanners = 0
     maxScanners = 0
-    allowed = {"immediate":"Immediate", "delayed": "Delayed", "": "Disabled", "n/a": "Not supported"}
     if "scanner_autoscale" in conf:
         scannerAutoscale = conf["scanner_autoscale"]
+        allowed = {"immediate":"Immediate", "delayed": "Delayed", "": "Disabled", "n/a": "Not supported"}
         if scannerAutoscale["strategy"] in allowed:
             scannerAutoscaleStrategy = allowed[scannerAutoscale["strategy"]]
         if "min_pods" in scannerAutoscale:
@@ -341,7 +342,7 @@ def get_ibmsa_setup_url(data):
     conf = data.client.show("partner/ibm_sa_ep", None, None)
     if "url" in conf:
         click.echo("")
-        click.echo("URI: {}".format(conf["url"]))
+        click.echo(f'URI: {conf["url"]}')
     click.echo("")
 
 
@@ -410,20 +411,9 @@ def _display_license(lic):
                   ("enforce", "Allow Enforce Mode"),
                   ("serverless", "Allow Serverless scan"))
 
-    if lic["serverless"] == True:
-        lic["serverless"] = "Y"
-    else:
-        lic["serverless"] = "N"
-
-    if lic["scan"] == True:
-        lic["scan"] = "Y"
-    else:
-        lic["scan"] = "N"
-
-    if lic["enforce"] == True:
-        lic["enforce"] = "Y"
-    else:
-        lic["enforce"] = "N"
+    lic["serverless"] = "Y" if lic["serverless"] == True else "N"
+    lic["scan"] = "Y" if lic["scan"] == True else "N"
+    lic["enforce"] = "Y" if lic["enforce"] == True else "N"
     output.show_with_map(column_map, lic)
 
 
@@ -465,12 +455,12 @@ def request_system_baseline_profile(data, mode):
 @click.pass_obj
 def request_system_unquarantine(data, group, rule):
     """Unquarantine containers"""
-    if group == None and rule == None:
+    if group is None and rule is None:
         click.echo("Error: must have at least one param")
         return
 
     unquar = {}
-    if group != None and group != "all":
+    if group not in [None, "all"]:
         unquar["group"] = group
     if rule != None:
         unquar["response_rule"] = rule
@@ -495,15 +485,14 @@ def create_system(data):
 @click.pass_obj
 def create_system_webhook_url(data, name, url, type, scope, enable):
     """Create webhook settings"""
-    if type == "slack":
-        type = "Slack"
-    else:
-        type = ""
-    body = {"name": name, "url": url, "enable": enable, "type": type}
-    if scope == "fed":
-        body["cfg_type"] = "federal"
-    else:
-        body["cfg_type"] = "user_created"
+    type = "Slack" if type == "slack" else ""
+    body = {
+        "name": name,
+        "url": url,
+        "enable": enable,
+        "type": type,
+        "cfg_type": "federal" if scope == "fed" else "user_created",
+    }
     data.client.create("system/config/webhook", {"config": body})
 
 
@@ -521,8 +510,7 @@ def delete_system(data):
 @click.pass_obj
 def delete_system_webhook_url(data, name, scope):
     """Delete webhook settings"""
-    args = {}
-    args["scope"] = scope
+    args = {"scope": scope}
     data.client.delete("system/config/webhook", name, **args)
 
 
@@ -595,11 +583,10 @@ def set_system_ibmsa(data, disable, dashboard):
                 data.client.config_system(ibmsa_ep_enabled=True)
             else:
                 data.client.config_system(ibmsa_ep_enabled=True, ibmsa_ep_dashboard_url=dashboard)
+        elif dashboard is None:
+            data.client.config_system(ibmsa_ep_enabled=False)
         else:
-            if dashboard is None:
-                data.client.config_system(ibmsa_ep_enabled=False)
-            else:
-                data.client.config_system(ibmsa_ep_enabled=False, ibmsa_ep_dashboard_url=dashboard)
+            data.client.config_system(ibmsa_ep_enabled=False, ibmsa_ep_dashboard_url=dashboard)
     elif dashboard is not None and dashboard != "":
         data.client.config_system(ibmsa_ep_dashboard_url=dashboard)
 
@@ -640,14 +627,12 @@ def set_system_syslog_in_json(data, in_json):
 def set_system_syslog_categories(data, category):
     """Set syslog categories"""
     s = set()
-    l = []
     for c in category:
         if c == 'all':
-            s |= set(['event', 'security-event', 'audit'])
+            s |= {'event', 'security-event', 'audit'}
         else:
             s.add(c)
-    for c in s:
-        l.append(c)
+    l = list(s)
     data.client.config_system(syslog_categories=l)
 
 
@@ -676,9 +661,8 @@ def set_system_syslog_protocol(data, protocol, cert_file_path):
     elif protocol == 'TCPTLS':
         cert = ""
         if cert_file_path is not None and cert_file_path != "":
-            f = open(cert_file_path)
-            cert = f.read()
-            f.close()
+            with open(cert_file_path) as f:
+                cert = f.read()
         if cert == "":
             click.echo("Error: Syslog server certificate file path not specified")
         else:
@@ -716,13 +700,10 @@ def set_system_controller_debug(data, category):
     s = set()
     for c in category:
         if c == 'all':
-            s |= set(['cpath', 'conn', 'mutex', 'scan', 'cluster', 'k8s_monitor'])
+            s |= {'cpath', 'conn', 'mutex', 'scan', 'cluster', 'k8s_monitor'}
         else:
             s.add(c)
-    # Can't use list(s) because we overwrite list with our own function
-    l = []
-    for c in s:
-        l.append(c)
+    l = list(s)
     data.client.config_system(controller_debug=l)
 
 
@@ -783,8 +764,7 @@ def set_system_webhook_url(data, name, url, type, scope, enable):
     if type == "slack":
         type = "Slack"
     body = {"name": name, "url": url, "enable": enable, "type": type}
-    args = {}
-    args["scope"] = scope
+    args = {"scope": scope}
     data.client.config("system/config/webhook", name, {"config": body}, **args)
 
 
@@ -793,13 +773,8 @@ def set_system_webhook_url(data, name, url, type, scope, enable):
 @click.pass_obj
 def set_system_telemetry(data, status):
     """Enable/disable sending telemetry data(non-PII under GDPR) to SUSE"""
-    noTelemetry = False
-    if status == 'disable':
-        noTelemetry = True
-    if status == 'enable':
-        data.client.config_system(no_telemetry_report=noTelemetry)
-    else:
-        data.client.config_system(no_telemetry_report=noTelemetry)
+    noTelemetry = status == 'disable'
+    data.client.config_system(no_telemetry_report=noTelemetry)
 
 
 @set_system.group("monitor_service_mesh")
@@ -1088,9 +1063,11 @@ def _write_part(part, filename):
         try:
             with click.open_file(filename, 'wb') as wfp:
                 wfp.write(part.raw)
-            click.echo("Wrote %s to %s" % (part.name, click.format_filename(filename)))
+            click.echo(f"Wrote {part.name} to {click.format_filename(filename)}")
         except IOError:
-            click.echo("Error: Failed to write %s to %s" % (part.name, click.format_filename(filename)))
+            click.echo(
+                f"Error: Failed to write {part.name} to {click.format_filename(filename)}"
+            )
     else:
         # gzip
         cfg = zlib.decompress(part.raw, 16 + zlib.MAX_WBITS)
@@ -1114,24 +1091,22 @@ def export_config(data, section, raw, filename):
     # TODO: file is read into memory completely first, not ideal.
     if len(section) > 0:
         secs = ','.join(section)
-        url = "file/config?section=" + secs
+        url = f"file/config?section={secs}"
         if raw:
-            url = url + "&raw=true"
-        headers, body = data.client.download(url, None)
+            url = f"{url}&raw=true"
     else:
         url = "file/config"
         if raw:
-            url = url + "?raw=true"
-        headers, body = data.client.download(url, None)
-
+            url += "?raw=true"
+    headers, body = data.client.download(url, None)
     if raw:
         if filename and len(filename) > 0:
             try:
                 with click.open_file(filename, 'w') as wfp:
                     wfp.write(body.content)
-                click.echo("Wrote to %s" % click.format_filename(filename))
+                click.echo(f"Wrote to {click.format_filename(filename)}")
             except IOError:
-                click.echo("Error: Failed to write to %s" % click.format_filename(filename))
+                click.echo(f"Error: Failed to write to {click.format_filename(filename)}")
         else:
             click.echo(body.content)
         return
@@ -1162,18 +1137,15 @@ def export_config(data, section, raw, filename):
 def request_export_group(data, name, filename):
     """Export group policies."""
 
-    groups = []
-    for n in name:
-        groups.append(n)
-
+    groups = list(name)
     respData = data.client.requestDownload("file", "group", None, {"groups": groups})
     if filename and len(filename) > 0:
         try:
             with click.open_file(filename, 'w') as wfp:
                 wfp.write(respData)
-            click.echo("Wrote to %s" % click.format_filename(filename))
+            click.echo(f"Wrote to {click.format_filename(filename)}")
         except IOError:
-            click.echo("Error: Failed to write to %s" % click.format_filename(filename))
+            click.echo(f"Error: Failed to write to {click.format_filename(filename)}")
     else:
         click.echo(respData)
     return
@@ -1187,18 +1159,15 @@ def request_export_group(data, name, filename):
 def request_export_admission(data, config, id, filename):
     """Export admission control configuration/rules."""
 
-    ids = []
-    for n in id:
-        ids.append(int(n))
-
+    ids = [int(n) for n in id]
     respData = data.client.requestDownload("file", "admission", None, {"export_config": config, "ids": ids})
     if filename and len(filename) > 0:
         try:
             with click.open_file(filename, 'w') as wfp:
                 wfp.write(respData)
-            click.echo("Wrote to %s" % click.format_filename(filename))
+            click.echo(f"Wrote to {click.format_filename(filename)}")
         except IOError:
-            click.echo("Error: Failed to write to %s" % click.format_filename(filename))
+            click.echo(f"Error: Failed to write to {click.format_filename(filename)}")
     else:
         click.echo(respData)
     return
@@ -1210,18 +1179,15 @@ def request_export_admission(data, config, id, filename):
 def request_export_dlp(data, name, filename):
     """Export DLP sensors/rules."""
 
-    names = []
-    for n in name:
-        names.append(n)
-
+    names = list(name)
     respData = data.client.requestDownload("file", "dlp", None, {"names": names})
     if filename and len(filename) > 0:
         try:
             with click.open_file(filename, 'w') as wfp:
                 wfp.write(respData)
-            click.echo("Wrote to %s" % click.format_filename(filename))
+            click.echo(f"Wrote to {click.format_filename(filename)}")
         except IOError:
-            click.echo("Error: Failed to write to %s" % click.format_filename(filename))
+            click.echo(f"Error: Failed to write to {click.format_filename(filename)}")
     else:
         click.echo(respData)
     return
@@ -1233,18 +1199,15 @@ def request_export_dlp(data, name, filename):
 def request_export_waf(data, name, filename):
     """Export WAF sensors/rules."""
 
-    names = []
-    for n in name:
-        names.append(n)
-
+    names = list(name)
     respData = data.client.requestDownload("file", "waf", None, {"names": names})
     if filename and len(filename) > 0:
         try:
             with click.open_file(filename, 'w') as wfp:
                 wfp.write(respData)
-            click.echo("Wrote to %s" % click.format_filename(filename))
+            click.echo(f"Wrote to {click.format_filename(filename)}")
         except IOError:
-            click.echo("Error: Failed to write to %s" % click.format_filename(filename))
+            click.echo(f"Error: Failed to write to {click.format_filename(filename)}")
     else:
         click.echo(respData)
     return
@@ -1268,7 +1231,7 @@ def import_config(data, filename, raw, ignoreFed):
         tid = ""
         tempToken = ""
         resp = data.client.importConfig("file/config", filename, raw, ignoreFed, tid, 0, "")
-        if tid == "":
+        if not tid:
             if resp.status_code == requests.codes.partial:
                 respJson = resp.json()
                 if "data" in respJson:
@@ -1302,25 +1265,30 @@ def import_config(data, filename, raw, ignoreFed):
 
         click.echo("")
         if resp.status_code == requests.codes.ok and status == "done":
-            click.echo("Uploaded configuration file {}. Please login again.".format(click.format_filename(filename)))
+            click.echo(
+                f"Uploaded configuration file {click.format_filename(filename)}. Please login again."
+            )
         else:
-            click.echo("[1] Error: Failed to upload configuration file {}".format(click.format_filename(filename)))
+            click.echo(
+                f"[1] Error: Failed to upload configuration file {click.format_filename(filename)}"
+            )
     except IOError:
         click.echo("")
-        click.echo("[2] Error: Failed to upload configuration file %s" % click.format_filename(filename))
+        click.echo(
+            f"[2] Error: Failed to upload configuration file {click.format_filename(filename)}"
+        )
     click.echo("")
 
 
 @request_import.command("group")
 @click.argument('filename', type=click.Path(dir_okay=False, exists=True, resolve_path=True))
-# @click.option("--raw", default=False, is_flag=True, help="Upload in raw format")
 @click.pass_obj
 def import_group(data, filename):
     """Import group policy."""
     try:
         tid = ""
         resp = data.client.importConfig("file/group/config", filename, True, None, tid, 0, "")
-        if tid == "":
+        if not tid:
             if resp.status_code == requests.codes.partial:
                 respJson = resp.json()
                 if "data" in respJson:
@@ -1352,25 +1320,28 @@ def import_group(data, filename):
 
         click.echo("")
         if resp.status_code == requests.codes.ok and status == "done":
-            click.echo("Imported group policy {}.".format(click.format_filename(filename)))
+            click.echo(f"Imported group policy {click.format_filename(filename)}.")
         else:
-            click.echo("[1] Error: Failed to import group policy {}".format(click.format_filename(filename)))
+            click.echo(
+                f"[1] Error: Failed to import group policy {click.format_filename(filename)}"
+            )
     except IOError:
         click.echo("")
-        click.echo("[2] Error: Failed to import group policy %s" % click.format_filename(filename))
+        click.echo(
+            f"[2] Error: Failed to import group policy {click.format_filename(filename)}"
+        )
     click.echo("")
 
 
 @request_import.command('admission')
 @click.argument('filename', type=click.Path(dir_okay=False, exists=True, resolve_path=True))
-# @click.option("--raw", default=False, is_flag=True, help="Upload in raw format")
 @click.pass_obj
 def import_admission(data, filename):
     """Import admission control configuration/rules."""
     try:
         tid = ""
         resp = data.client.importConfig("file/admission/config", filename, True, None, tid, 0, "")
-        if tid == "":
+        if not tid:
             if resp.status_code == requests.codes.partial:
                 respJson = resp.json()
                 if "data" in respJson:
@@ -1402,14 +1373,18 @@ def import_admission(data, filename):
 
         click.echo("")
         if resp.status_code == requests.codes.ok and status == "done":
-            click.echo("Imported admission control configuration/rules {}.".format(click.format_filename(filename)))
+            click.echo(
+                f"Imported admission control configuration/rules {click.format_filename(filename)}."
+            )
         else:
-            click.echo("[1] Error: Failed to import admission control configuration/rules {}".format(
-                click.format_filename(filename)))
+            click.echo(
+                f"[1] Error: Failed to import admission control configuration/rules {click.format_filename(filename)}"
+            )
     except IOError:
         click.echo("")
         click.echo(
-            "[2] Error: Failed to import admission control configuration/rules %s" % click.format_filename(filename))
+            f"[2] Error: Failed to import admission control configuration/rules {click.format_filename(filename)}"
+        )
     click.echo("")
 
 @request_import.command('dlp')
@@ -1420,7 +1395,7 @@ def import_dlp(data, filename):
     try:
         tid = ""
         resp = data.client.importConfig("file/dlp/config", filename, True, None, tid, 0, "")
-        if tid == "":
+        if not tid:
             if resp.status_code == requests.codes.partial:
                 respJson = resp.json()
                 if "data" in respJson:
@@ -1452,12 +1427,16 @@ def import_dlp(data, filename):
 
         click.echo("")
         if resp.status_code == requests.codes.ok and status == "done":
-            click.echo("Imported DLP sensors/rules {}.".format(click.format_filename(filename)))
+            click.echo(f"Imported DLP sensors/rules {click.format_filename(filename)}.")
         else:
-            click.echo("[1] Error: Failed to import DLP sensors/rules {}".format(click.format_filename(filename)))
+            click.echo(
+                f"[1] Error: Failed to import DLP sensors/rules {click.format_filename(filename)}"
+            )
     except IOError:
         click.echo("")
-        click.echo("[2] Error: Failed to import DLP sensors/rules %s" % click.format_filename(filename))
+        click.echo(
+            f"[2] Error: Failed to import DLP sensors/rules {click.format_filename(filename)}"
+        )
     click.echo("")
 
 @request_import.command('waf')
@@ -1468,7 +1447,7 @@ def import_waf(data, filename):
     try:
         tid = ""
         resp = data.client.importConfig("file/waf/config", filename, True, None, tid, 0, "")
-        if tid == "":
+        if not tid:
             if resp.status_code == requests.codes.partial:
                 respJson = resp.json()
                 if "data" in respJson:
@@ -1500,12 +1479,16 @@ def import_waf(data, filename):
 
         click.echo("")
         if resp.status_code == requests.codes.ok and status == "done":
-            click.echo("Imported WAF sensors/rules {}.".format(click.format_filename(filename)))
+            click.echo(f"Imported WAF sensors/rules {click.format_filename(filename)}.")
         else:
-            click.echo("[1] Error: Failed to import WAF sensors/rules {}".format(click.format_filename(filename)))
+            click.echo(
+                f"[1] Error: Failed to import WAF sensors/rules {click.format_filename(filename)}"
+            )
     except IOError:
         click.echo("")
-        click.echo("[2] Error: Failed to import WAF sensors/rules %s" % click.format_filename(filename))
+        click.echo(
+            f"[2] Error: Failed to import WAF sensors/rules {click.format_filename(filename)}"
+        )
     click.echo("")
 
 
@@ -1520,19 +1503,20 @@ def debug(data, enforcer, tail, filename):
     """Request export debug """
     id = enforcer
     if enforcer != "":
-        obj = utils.get_managed_object(data.client, "enforcer", "enforcer", enforcer)
-        if obj:
+        if obj := utils.get_managed_object(
+            data.client, "enforcer", "enforcer", enforcer
+        ):
             id = obj["id"]
 
     url = "file/debug"
     filter = ""
     if enforcer != "":
-        filter += "f_enforcer=%s&" % id
+        filter += f"f_enforcer={id}&"
     if tail != 0:
         filter += "f_tail=%d&" % tai
     if filter != "":
         filter = filter.rstrip("&")
-        url += "?" + filter
+        url += f"?{filter}"
 
     headers, body = data.client.download(url, None)
     clen = int(headers.get('Content-Length', '-1'))

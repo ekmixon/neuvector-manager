@@ -30,7 +30,7 @@ def controller(ctx, data, sort, sort_dir):
     for ctrl in ctrls:
         _ctrl_list_display_format(ctrl, "id")
 
-    click.echo("Total controllers: %s" % len(ctrls))
+    click.echo(f"Total controllers: {len(ctrls)}")
     columns = (
     "id", "name", "host_name", "version", "joined_at", "cluster_ip", "leader", "connection_state", "disconnected_at")
     output.list(columns, ctrls)
@@ -60,17 +60,13 @@ def setting(data, id_or_name):
         return
 
     try:
-        conf = data.client.show("controller", "config", "%s/config" % ctrler["id"])
+        conf = data.client.show("controller", "config", f'{ctrler["id"]}/config')
     except client.ObjectNotFound:
         return
 
     f = "debug"
     fo = output.key_output(f)
-    if f in conf and conf[f]:
-        conf[fo] = ", ".join(conf[f])
-    else:
-        conf[fo] = ""
-
+    conf[fo] = ", ".join(conf[f]) if f in conf and conf[f] else ""
     columns = ("debug",)
     output.show(columns, conf)
 
@@ -85,7 +81,7 @@ def counter(data, id_or_name):
         return
 
     try:
-        counter = data.client.show("controller", "counter", "%s/counter" % ctrler["id"])
+        counter = data.client.show("controller", "counter", f'{ctrler["id"]}/counter')
     except client.ObjectNotFound:
         return
 
@@ -124,20 +120,14 @@ def debug(data, category):
     if not ctrler:
         return
 
-    conf = {}
-
     s = set()
     for c in category:
         if c == 'all':
-            s |= set(['cpath', 'conn', 'mutex', 'scan', 'cluster'])
+            s |= {'cpath', 'conn', 'mutex', 'scan', 'cluster'}
         else:
             s.add(c)
-    # Can't use list(s) because we overwrite list with our own function
-    l = []
-    for c in s:
-        l.append(c)
-    conf["debug"] = l
-
+    l = list(s)
+    conf = {"debug": l}
     data.client.config("controller", ctrler["id"], {"config": conf})
 
 
@@ -166,27 +156,30 @@ def request_controller_profile(data, category, duration):
     s = set()
     for c in category:
         if c == 'all':
-            s |= set(['cpu', 'memory'])
+            s |= {'cpu', 'memory'}
         else:
             s.add(c)
-    # Can't use list(s) because we overwrite list with our own function
-    l = []
-    for c in s:
-        l.append(c)
+    l = list(s)
     prof["methods"] = l
 
-    data.client.request("controller", "%s/profiling" % controller["id"], None, {"profiling": prof})
+    data.client.request(
+        "controller",
+        f'{controller["id"]}/profiling',
+        None,
+        {"profiling": prof},
+    )
 
 
 @request_controller.command()
 @click.pass_obj
 def sync(data):
     """Request controller sync """
-    ctrl = utils.get_managed_object(data.client, "controller", "controller", data.id_or_name)
-    if not ctrl:
+    if ctrl := utils.get_managed_object(
+        data.client, "controller", "controller", data.id_or_name
+    ):
+        data.client.request("debug/controller", "sync", ctrl["id"], None)
+    else:
         return
-
-    data.client.request("debug/controller", "sync", ctrl["id"], None)
 
 
 @request_controller.command('logs')
@@ -196,31 +189,24 @@ def sync(data):
 @click.pass_obj
 def request_controller_logs(data, filename, dir, size):
     """Request controller logs"""
-    filter = {}
-
-    ctrl = utils.get_managed_object(data.client, "controller", "controller", data.id_or_name)
-    if ctrl:
-        path = "controller/%s/logs" % ctrl["id"]
-        device_id = ctrl["id"]
-    else:
+    if not (
+        ctrl := utils.get_managed_object(
+            data.client, "controller", "controller", data.id_or_name
+        )
+    ):
         return
 
-    if dir == 'start':
-        filter["start"] = 0
-    else:
-        filter["start"] = -1
+    path = f'controller/{ctrl["id"]}/logs'
+    device_id = ctrl["id"]
+    filter = {"start": 0 if dir == 'start' else -1}
     if size:
         filter["limit"] = size * 1024 * 1024
 
     headers, body = data.client.download(path, **filter)
 
-    if filename:
-        filepath = filename
-    else:
-        filepath = device_id + ".log"
-
+    filepath = filename if filename else f"{device_id}.log"
     with click.open_file(filepath, 'w') as wfp:
-        click.echo("Save logs to: %s" % filepath)
+        click.echo(f"Save logs to: {filepath}")
         wfp.write(body.content)
 
 
@@ -235,30 +221,26 @@ def stats(data, id_or_name):
         return
 
     try:
-        stats = data.client.show(
-            "controller", "stats", "%s/stats" % controller["id"])
+        stats = data.client.show("controller", "stats", f'{controller["id"]}/stats')
     except client.ObjectNotFound:
         return
-
-    display = []
 
     span = 0
     stats["total"]["duration"] = "Total"
     utils.stats_display_format(stats["total"], span)
-    display.append(stats["total"])
-
+    display = [stats["total"]]
     span = stats["interval"]
-    stats["span_1"]["duration"] = "Last %ss" % span
+    stats["span_1"]["duration"] = f"Last {span}s"
     utils.stats_display_format(stats["span_1"], span)
     display.append(stats["span_1"])
 
     span = stats["interval"] * 12
-    stats["span_12"]["duration"] = "Last %ss" % span
+    stats["span_12"]["duration"] = f"Last {span}s"
     utils.stats_display_format(stats["span_12"], span)
     display.append(stats["span_12"])
 
     span = stats["interval"] * 60
-    stats["span_60"]["duration"] = "Last %ss" % span
+    stats["span_60"]["duration"] = f"Last {span}s"
     utils.stats_display_format(stats["span_60"], span)
     display.append(stats["span_60"])
 

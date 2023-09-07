@@ -26,7 +26,7 @@ _reg_types = {
 
 def _list_image_display_format(img):
     if "repository" in img and "tag" in img:
-        img["image"] = "%s:%s" % (img["repository"], img["tag"])
+        img["image"] = f'{img["repository"]}:{img["tag"]}'
     f = "image_id"
     if f in img:
         fo = output.key_output(f)
@@ -65,12 +65,12 @@ def show_registry(ctx, data, scope):
         return
 
     args = {}
-    if scope == 'fed' or scope == 'local':
+    if scope in ['fed', 'local']:
         args["scope"] = scope
 
     #summarys = data.client.list("scan/registry", "summary")
     summarys = data.client.show("scan/registry", "summarys", None, **args)  # show(self, path, obj, obj_id, **kwargs)
-    if summarys == None:
+    if summarys is None:
         return
 
     for s in summarys:
@@ -116,8 +116,8 @@ def images(data, name, filter_domain, filter_repo, page):
     args["limit"] = page
 
     while True:
-        images = data.client.list("scan/registry/%s/images" % name, "image")
-        if images == None:
+        images = data.client.list(f"scan/registry/{name}/images", "image")
+        if images is None:
             break
 
         for img in images:
@@ -151,12 +151,21 @@ def report(data, name, image, show_accepted):
 
     report = None
     try:
-        report = data.client.show("scan/registry/%s/image" % name, "report", image, **args)
+        report = data.client.show(
+            f"scan/registry/{name}/image", "report", image, **args
+        )
     except client.ObjectNotFound:
-        images = data.client.list("scan/registry/%s/images" % name, "image", image_id="in,%s" % image)
+        images = data.client.list(
+            f"scan/registry/{name}/images", "image", image_id=f"in,{image}"
+        )
         # More than one image can have same image ID. Show the first one here.
         if len(images) >= 1:
-            report = data.client.show("scan/registry/%s/image" % name, "report", images[0]["image_id"], **args)
+            report = data.client.show(
+                f"scan/registry/{name}/image",
+                "report",
+                images[0]["image_id"],
+                **args,
+            )
         else:
             raise client.ObjectNotFound()
 
@@ -217,12 +226,16 @@ def layers(data, name, image):
     """Show registry image scan layers report."""
     report = None
     try:
-        report = data.client.show("scan/registry/%s/layers" % name, "report", image)
+        report = data.client.show(f"scan/registry/{name}/layers", "report", image)
     except client.ObjectNotFound:
-        images = data.client.list("scan/registry/%s/images" % name, "image", image_id="in,%s" % image)
+        images = data.client.list(
+            f"scan/registry/{name}/images", "image", image_id=f"in,{image}"
+        )
         # More than one image can have same image ID. Show the first one here.
         if len(images) >= 1:
-            report = data.client.show("scan/registry/%s/layers" % name, "report", images[0]["image_id"])
+            report = data.client.show(
+                f"scan/registry/{name}/layers", "report", images[0]["image_id"]
+            )
         else:
             raise client.ObjectNotFound()
 
@@ -230,18 +243,16 @@ def layers(data, name, image):
         return
 
     if len(report["layers"]) > 0:
-        result = []
         layers = report["layers"]
-        columns = ("digest", "vulnerabilities")
         secrets = False
-        if layers[0]["secrets"] != None:
-            for l in layers:
-                result.append({"digest": l["digest"], "vulnerabilities": len(l["vulnerabilities"])})
-        else:
-            columns = ("digest", "vulnerabilities")
-            for l in layers:
-                result.append({"digest": l["digest"], "vulnerabilities": len(l["vulnerabilities"])})
-
+        columns = ("digest", "vulnerabilities")
+        result = [
+            {
+                "digest": l["digest"],
+                "vulnerabilities": len(l["vulnerabilities"]),
+            }
+            for l in layers
+        ]
         output.list(columns, result)
     else:
         click.echo("No Layers Report")
@@ -264,8 +275,8 @@ def source(data, source, filter_domain, filter_repo, page):
     args["limit"] = page
 
     while True:
-        images = data.client.list("debug/registry/image/%s" % source, "image", **args)
-        if images == None:
+        images = data.client.list(f"debug/registry/image/{source}", "image", **args)
+        if images is None:
             break
 
         out = []
@@ -371,20 +382,10 @@ def registry_create(data, registry_type, name, registry, username, password, tok
         }
 
     if filter:
-        l = []
-        for s in filter:
-            l.append(s)
+        l = list(filter)
         info["filters"] = l
-    if rescan == 'enable':
-        info["rescan_after_db_update"] = True
-    else:
-        info["rescan_after_db_update"] = False
-
-    if scan_layers == 'enable':
-        info["scan_layers"] = True
-    else:
-        info["scan_layers"] = False
-
+    info["rescan_after_db_update"] = rescan == 'enable'
+    info["scan_layers"] = scan_layers == 'enable'
     info["schedule"] = {"schedule": schedule, "interval": schedule_interval}
 
     if repolimit:
@@ -404,7 +405,7 @@ def registry_create(data, registry_type, name, registry, username, password, tok
         info["ibm_cloud_account"] = ibmcloud_account
     if ibmcloud_token_url:
         info["ibm_cloud_token_url"] = ibmcloud_token_url
-        
+
     if name.startswith('fed.'):
         info["cfg_type"] = client.FederalCfg
     else:
@@ -459,11 +460,7 @@ def set_registry(data, name, registry, username, password, token, auth_with_toke
     if token:
         info["auth_token"] = token
     if auth_with_token != None:
-        if auth_with_token == 'enable':
-            info["auth_with_token"] = True
-        else:
-            info["auth_with_token"] = False
-
+        info["auth_with_token"] = auth_with_token == 'enable'
     if aws:
         awsid = click.prompt("Account ID")
         region = click.prompt("Region")
@@ -483,27 +480,17 @@ def set_registry(data, name, registry, username, password, token, auth_with_toke
         }
 
     if filter:
-        l = []
-        for s in filter:
-            l.append(s)
+        l = list(filter)
         info["filters"] = l
     if rescan != None:
-        if rescan == 'enable':
-            info["rescan_after_db_update"] = True
-        else:
-            info["rescan_after_db_update"] = False
-
+        info["rescan_after_db_update"] = rescan == 'enable'
     if scan_layers != None:
-        if scan_layers == 'enable':
-            info["scan_layers"] = True
-        else:
-            info["scan_layers"] = False
-
+        info["scan_layers"] = scan_layers == 'enable'
     schd = {}
     if schedule != None:
         schd = {"schedule": schedule}
     if schedule_interval != None:
-        if schedule != None and schedule != 'periodical':
+        if schedule not in [None, 'periodical']:
             click.echo("schedule must be periodical when set schedule interval")
             return
         schd = {"schedule": 'periodical', "interval": schedule_interval}
@@ -586,5 +573,5 @@ def registry_start(data):
 def registry_stop(data):
     """Request to stop scanning registry."""
 
-    url = "scan/registry/%s" % data.id_or_name
+    url = f"scan/registry/{data.id_or_name}"
     data.client.delete(url, "scan")

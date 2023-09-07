@@ -20,18 +20,15 @@ def show_pwd_profile(ctx, data):
         return
 
     respData = data.client.show("password_profile", None, None)
-    activeName = ""
-    profiles = []
-    if "active_profile_name" in respData:
-        activeName = respData["active_profile_name"]
-    if "pwd_profiles" in respData:
-        profiles = respData["pwd_profiles"]
+    activeName = (
+        respData["active_profile_name"]
+        if "active_profile_name" in respData
+        else ""
+    )
+    profiles = respData["pwd_profiles"] if "pwd_profiles" in respData else []
     click.echo("")
     for profile in profiles:
-        if profile["name"] == activeName:
-            profile["active"] = "Y"
-        else:
-            profile["active"] = ""
+        profile["active"] = "Y" if profile["name"] == activeName else ""
     columns = ("name", "comment", "active")
     output.list(columns, profiles)
 
@@ -49,30 +46,30 @@ def detail(data, name):
     columns = (
     "name", "comment", "min_len", "min_uppercase_count", "min_lowercase_count", "min_digit_count", "min_special_count",
     header1, header2, header3, header4)
-    profiles = []
-
-    if profile["enable_block_after_failed_login"] is True and profile["block_after_failed_login_count"] > 0 and profile[
-        "block_minutes"] > 0:
-        profile[header1] = "block {} minutes after {} consecutive login faulures".format(profile["block_minutes"],
-                                                                                         profile[
-                                                                                             "block_after_failed_login_count"])
-    else:
-        profile[header1] = "not enabled"
-
+    profile[header1] = (
+        f'block {profile["block_minutes"]} minutes after {profile["block_after_failed_login_count"]} consecutive login faulures'
+        if profile["enable_block_after_failed_login"] is True
+        and profile["block_after_failed_login_count"] > 0
+        and profile["block_minutes"] > 0
+        else "not enabled"
+    )
     if profile["enable_password_expiration"] is True and profile["password_expire_after_days"] > 0:
-        profile[header2] = "user password is valid for {} days".format(profile["password_expire_after_days"])
+        profile[
+            header2
+        ] = f'user password is valid for {profile["password_expire_after_days"]} days'
     else:
         profile[header2] = "not enabled"
 
     if profile["enable_password_history"] is True and profile["password_keep_history_count"] > 0:
-        profile[header3] = "keep {} password hash history".format(profile["password_keep_history_count"])
+        profile[
+            header3
+        ] = f'keep {profile["password_keep_history_count"]} password hash history'
     else:
         profile[header3] = "not enabled"
 
     profile[header4] = profile["session_timeout"]
 
-    profiles.append(profile)
-
+    profiles = [profile]
     click.echo("Profile basics:")
     columns1 = ("name", "comment", header4)
     output.list(columns1, profiles)
@@ -92,18 +89,13 @@ def basic_rule(data):
     """Show basic password requirements of active password profile."""
     profile = data.client.show("password_profile", "pwd_profile", "nvsyspwdprofile")
     columns = ("rule", "value", "comment")
-    rules = []
     rule1 = {"rule": "minimum length", "value": profile["min_len"], "comment": ""}
     rule2 = {"rule": "minimum uppercase character count", "value": profile["min_uppercase_count"], "comment": "A ~ Z"}
     rule3 = {"rule": "minimum lowercase character count", "value": profile["min_lowercase_count"], "comment": "a ~ z"}
     rule4 = {"rule": "minimum digit character count", "value": profile["min_digit_count"], "comment": "0 ~ 9"}
     rule5 = {"rule": "minimum special character count", "value": profile["min_special_count"],
              "comment": "!\"#$%&\'()*+,-./:;<=>?@[\\]^_`{|}~"}
-    rules.append(rule1)
-    rules.append(rule2)
-    rules.append(rule3)
-    rules.append(rule4)
-    rules.append(rule5)
+    rules = [rule1, rule2, rule3, rule4, rule5]
     output.list(columns, rules)
 
 

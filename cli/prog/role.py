@@ -18,33 +18,22 @@ def getPermissionOptions(data):
     global GlobalPermissionOptions
     global DomainPermissionOptions
 
-    options = data.client.show("user_role_permission/options", "options", None)
-    if options:
+    if options := data.client.show(
+        "user_role_permission/options", "options", None
+    ):
         pOptions = {}
         global_options = options["global_options"]
         for option in global_options:
-            if option["read_supported"] is True:
-                option["view supported"] = True
-            else:
-                option["view supported"] = False
-            if option["write_supported"] is True:
-                option["modify supported"] = True
-            else:
-                option["modify supported"] = False
+            option["view supported"] = option["read_supported"] is True
+            option["modify supported"] = option["write_supported"] is True
             pOptions[option["id"]] = option
         GlobalPermissionOptions = pOptions
 
         pOptions = {}
         domain_options = options["domain_options"]
         for option in domain_options:
-            if option["read_supported"] is True:
-                option["view supported"] = True
-            else:
-                option["view supported"] = False
-            if option["write_supported"] is True:
-                option["modify supported"] = True
-            else:
-                option["modify supported"] = False
+            option["view supported"] = option["read_supported"] is True
+            option["modify supported"] = option["write_supported"] is True
             pOptions[option["id"]] = option
         DomainPermissionOptions = pOptions
 
@@ -94,25 +83,24 @@ def getPermissions(data, permissions):
     for permission in permissions:
         p2 = permission.split(":")
         if (len(p2) != 2) or (p2[1] not in ops):
-            return None, "invalid permission format: {}".format(permission)
-        p = {"read": False, "write": False}
+            return None, f"invalid permission format: {permission}"
         id = p2[0]
-        if id in GlobalPermissionOptions:
-            option = GlobalPermissionOptions[id]
-            if p2[1] == "r" or p2[1] == "rw":
-                if option["read_supported"] is False:
-                    return None, "unsupported read permission: {}".format(permission)
-                p["read"] = True
-            if p2[1] == "w" or p2[1] == "rw":
-                if option["write_supported"] is False:
-                    return None, "unsupported write permission: {}".format(permission)
-                p["write"] = True
-            if (p["read"] is True) or (p["write"] is True):
-                p["id"] = id
-                plist.append(p)
-        else:
-            return None, "invalid permission: {}".format(permission)
+        if id not in GlobalPermissionOptions:
+            return None, f"invalid permission: {permission}"
 
+        option = GlobalPermissionOptions[id]
+        p = {"read": False, "write": False}
+        if p2[1] in ["r", "rw"]:
+            if option["read_supported"] is False:
+                return None, f"unsupported read permission: {permission}"
+            p["read"] = True
+        if p2[1] in ["w", "rw"]:
+            if option["write_supported"] is False:
+                return None, f"unsupported write permission: {permission}"
+            p["write"] = True
+        if (p["read"] is True) or (p["write"] is True):
+            p["id"] = id
+            plist.append(p)
     return plist, ""
 
 
@@ -160,8 +148,7 @@ def detail(data, name):
     pHeader = "{0: <18}  {1: <19}   {2: <20}".format("permission", "view", "modify")
     columns = ("name", "reserved", "comment", pHeader)
     role[pHeader] = role["permissions"]
-    _roles = []
-    _roles.append(role)
+    _roles = [role]
     output.list(columns, _roles)
 
 

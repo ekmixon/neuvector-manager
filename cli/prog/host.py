@@ -37,7 +37,7 @@ def show_host(ctx, data, sort, sort_dir):
     for host in hosts:
         _list_display_format(host)
 
-    click.echo("Total hosts: %s" % len(hosts))
+    click.echo(f"Total hosts: {len(hosts)}")
     columns = ("id", "name", "runtime", "cpus", "memory", "containers", "interfaces")
     output.list(columns, hosts)
 
@@ -84,7 +84,9 @@ def profile_process(data, id_or_name):
         return
 
     try:
-        profile = data.client.show("host", "process_list", "%s/process_profile" % host["id"])
+        profile = data.client.show(
+            "host", "process_list", f'{host["id"]}/process_profile'
+        )
     except client.ObjectNotFound:
         return
 

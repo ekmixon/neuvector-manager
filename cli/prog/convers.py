@@ -19,31 +19,28 @@ def _show_display_format(conver):
 def _list_display_format(conver, src, dst, id_only):
     if src["kind"] == client.EndpointKindContainer:
         if id_only:
-            conver["client"] = "%s" % src["id"][:output.SHORT_ID_LENGTH]
+            conver["client"] = f'{src["id"][:output.SHORT_ID_LENGTH]}'
         else:
-            conver["client"] = "%s - %s" % (src["id"][:output.SHORT_ID_LENGTH], src["display_name"])
+            conver[
+                "client"
+            ] = f'{src["id"][:output.SHORT_ID_LENGTH]} - {src["display_name"]}'
     else:
         conver["client"] = src["id"]
 
     if dst["kind"] == client.EndpointKindContainer:
         if id_only:
-            conver["server"] = "%s" % dst["id"][:output.SHORT_ID_LENGTH]
+            conver["server"] = f'{dst["id"][:output.SHORT_ID_LENGTH]}'
         else:
-            conver["server"] = "%s - %s" % (dst["id"][:output.SHORT_ID_LENGTH], dst["display_name"])
+            conver[
+                "server"
+            ] = f'{dst["id"][:output.SHORT_ID_LENGTH]} - {dst["display_name"]}'
     else:
         conver["server"] = dst["id"]
 
     f = "applications"
-    if f in conver:
-        conver[output.key_output(f)] = ",".join(conver[f])
-    else:
-        conver[output.key_output(f)] = ""
+    conver[output.key_output(f)] = ",".join(conver[f]) if f in conver else ""
     f = "ports"
-    if f in conver:
-        conver[output.key_output(f)] = ",".join(conver[f])
-    else:
-        conver[output.key_output(f)] = ""
-
+    conver[output.key_output(f)] = ",".join(conver[f]) if f in conver else ""
     _show_display_format(conver)
 
 
@@ -67,7 +64,7 @@ def show_conver(ctx, data, group, domain, verbose, id_only, page):
         args["domain"] = domain
 
     data = data.client.show("conversation", "", None, **args)
-    if data == None:
+    if data is None:
         return
 
     eps = {}
@@ -108,11 +105,7 @@ def show_conver(ctx, data, group, domain, verbose, id_only, page):
     start = 0
     size = len(convers)
     while True:
-        if start + page > size:
-            end = size
-        else:
-            end = start + page
-
+        end = min(start + page, size)
         columns = (
         "client", "server", "policy_action", "severity", "bytes", "sessions", "applications", "ports", "xff_entry")
         output.list(columns, convers[start:end])
@@ -139,7 +132,7 @@ def pair(data, client, server):
     s = utils.get_managed_object_id(data.client, "workload", "workload", server)
     if not s:
         s = server
-    conver = data.client.show("conversation/%s" % c, "conversation", s)
+    conver = data.client.show(f"conversation/{c}", "conversation", s)
 
     for e in conver["entries"]:
         _show_display_format(e)
@@ -164,7 +157,7 @@ def endpoint(data, view, group, page):
 
     while True:
         eps = data.client.list("conversation_endpoint", "endpoint", **args)
-        if eps == None:
+        if eps is None:
             break
 
         columns = ["id", "display_name", "kind", "state"]
@@ -204,7 +197,7 @@ def pair(data, client, server):
     s = utils.get_managed_object_id(data.client, "workload", "workload", server)
     if not s:
         s = server
-    conver = data.client.delete("conversation/%s/%s" % (c, s), None)
+    conver = data.client.delete(f"conversation/{c}/{s}", None)
 
 
 @delete_conver.command()

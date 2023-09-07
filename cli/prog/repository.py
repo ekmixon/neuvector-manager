@@ -39,10 +39,7 @@ def repository(data, registry, username, password, repository, tag, scan_layers)
     if tag:
         info["tag"] = tag
     if scan_layers:
-        if scan_layers == 'enable':
-            info["scan_layers"] = True
-        else:
-            info["scan_layers"] = False
+        info["scan_layers"] = scan_layers == 'enable'
     while True:
         data = data.client.request("scan", "repository", None, {"request": info})
         if data != None:
@@ -72,10 +69,13 @@ def repository(data, registry, username, password, repository, tag, scan_layers)
                     click.echo("No SetUid/SetGid Report")
 
             if report["layers"] != None:
-                result = []
-                for l in report["layers"]:
-                    result.append({"digest": l["digest"], "vulnerabilities": len(l["vulnerabilities"])})
-
+                result = [
+                    {
+                        "digest": l["digest"],
+                        "vulnerabilities": len(l["vulnerabilities"]),
+                    }
+                    for l in report["layers"]
+                ]
                 columns = ("digest", "vulnerabilities")
                 output.list(columns, result)
             break

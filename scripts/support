@@ -141,7 +141,7 @@ class RestClient(object):
         else:
             self.port = 10443
 
-        self.url = "https://%s:%s" % (self.server, self.port)
+        self.url = f"https://{self.server}:{self.port}"
 
         self.sess = requests.Session()
         self.sess.headers.update({"Content-Type": "application/json"})
@@ -158,7 +158,7 @@ class RestClient(object):
 
     def request(self, method, path, body=None, decode=True):
         try:
-            resp = self.sess.request(method, "%s%s" % (self.url, path), data=body, verify=False)
+            resp = self.sess.request(method, f"{self.url}{path}", data=body, verify=False)
         except requests.exceptions.ConnectionError:
             raise ConnectionError()
         except requests.exceptions.Timeout:
@@ -183,9 +183,9 @@ def support_request(path, output):
     output.write('"%s":\n' % path)
 
     if path.find('?') == -1:
-        path = "{}?support=true".format(path)
+        path = f"{path}?support=true"
     else:
-        path = "{}&support=true".format(path)
+        path = f"{path}&support=true"
     _, _, data, raw = client.request("GET", path)
     if raw:
         output.write(data.content)
@@ -203,7 +203,7 @@ def support(client, jointID, enforcers, output):
     for _, _path in enumerate(support_test):
         path = _path
         if jointID:
-            path = "/v1/fed/cluster/{}{}".format(jointID, _path)
+            path = f"/v1/fed/cluster/{jointID}{_path}"
         output.write('"%s": {},\n' % path)
         status, _, data, _ = client.request("GET", path)
         if status != requests.codes.ok:
@@ -214,13 +214,13 @@ def support(client, jointID, enforcers, output):
     for _, _path in enumerate(support_global):
         path = _path
         if jointID:
-            path = "/v1/fed/cluster/{}{}".format(jointID, _path)
+            path = f"/v1/fed/cluster/{jointID}{_path}"
         support_request(path, output)
 
     # Host
     path = support_host[0]
     if jointID:
-        path = "/v1/fed/cluster/{}{}".format(jointID, path)
+        path = f"/v1/fed/cluster/{jointID}{path}"
     data = support_request(path, output)
     entries = data.get("hosts")
     if entries and len(entries):
@@ -228,14 +228,14 @@ def support(client, jointID, enforcers, output):
         for _, _path in enumerate(support_host[1:]):
             path = _path
             if jointID:
-                path = "/v1/fed/cluster/{}{}".format(jointID, _path)
+                path = f"/v1/fed/cluster/{jointID}{_path}"
             for id in ids:
                 support_request(path % id, output)
 
     # Controller
     path = support_controller[0]
     if jointID:
-        path = "/v1/fed/cluster/{}{}".format(jointID, path)
+        path = f"/v1/fed/cluster/{jointID}{path}"
     data = support_request(path, output)
     entries = data.get("controllers")
     if entries and len(entries):
@@ -243,14 +243,14 @@ def support(client, jointID, enforcers, output):
         for _, _path in enumerate(support_controller[1:]):
             path = _path
             if jointID:
-                path = "/v1/fed/cluster/{}{}".format(jointID, _path)
+                path = f"/v1/fed/cluster/{jointID}{_path}"
             for id in ids:
                 support_request(path % id, output)
 
     # Enforcer
     path = support_enforcer[0]
     if jointID:
-        path = "/v1/fed/cluster/{}{}".format(jointID, path)
+        path = f"/v1/fed/cluster/{jointID}{path}"
     data = support_request(path, output)
     entries = data.get("enforcers")
     if enforcers and entries and len(entries) > 0:
@@ -262,8 +262,8 @@ def support(client, jointID, enforcers, output):
         else:
             enfs = enforcers.split(",")
             if len(enfs) > 0:
-                for _, id in enumerate(all):
-                    for _, e in enumerate(enfs):
+                for id in all:
+                    for e in enfs:
                         if id.startswith(e):
                             ids.append(id)
                             break
@@ -271,7 +271,7 @@ def support(client, jointID, enforcers, output):
         for _, _path in enumerate(support_enforcer[1:]):
             path = _path
             if jointID:
-                path = "/v1/fed/cluster/{}{}".format(jointID, _path)
+                path = f"/v1/fed/cluster/{jointID}{_path}"
 
             for id in ids:
                 support_request(path % id, output)
@@ -279,7 +279,7 @@ def support(client, jointID, enforcers, output):
     # Workload
     path = support_workload[0]
     if jointID:
-        path = "/v1/fed/cluster/{}{}".format(jointID, path)
+        path = f"/v1/fed/cluster/{jointID}{path}"
     data = support_request(path, output)
     entries = data.get("workloads")
     if entries and len(entries):
@@ -287,7 +287,7 @@ def support(client, jointID, enforcers, output):
         for _, _path in enumerate(support_workload[1:]):
             path = _path
             if jointID:
-                path = "/v1/fed/cluster/{}{}".format(jointID, _path)
+                path = f"/v1/fed/cluster/{jointID}{_path}"
             for id in ids:
                 support_request(path % id, output)
 
@@ -315,7 +315,7 @@ if __name__ == "__main__":
         if not name:
             sys.exit(-1)
 
-        tmpfile = os.path.join(path, "." + name)
+        tmpfile = os.path.join(path, f".{name}")
         with gzip.open(tmpfile, 'wb') as output:
             with io.TextIOWrapper(output, encoding='utf-8') as encode:
                 rc = support(client,  args.joint, args.enforcers, encode)

@@ -43,36 +43,29 @@ def keypress():
 
 
 def convert_byte(byte, span):
-    if span == 0:
-        if byte < 1024 * 1024:
-            return "%.2f (KB)" % (float(byte) / 1024)
-        elif byte < 1024 * 1024 * 1024:
-            return "%.2f (MB)" % (float(byte) / 1024 / 1024)
-        else:
-            return "%.2f (GB)" % (float(byte) / 1024 / 1024 / 1024)
+    if span != 0:
+        return (
+            "%.2f (Kbps)" % (float(byte) * 8 / 1024 / span)
+            if byte < 1024 * 1024 * span
+            else "%.2f (Mbps)" % (float(byte) * 8 / 1024 / 1024 / span)
+        )
+    if byte < 1024 * 1024:
+        return "%.2f (KB)" % (float(byte) / 1024)
+    elif byte < 1024 * 1024 * 1024:
+        return "%.2f (MB)" % (float(byte) / 1024 / 1024)
     else:
-        if byte < 1024 * 1024 * span:
-            return "%.2f (Kbps)" % (float(byte) * 8 / 1024 / span)
-        else:
-            return "%.2f (Mbps)" % (float(byte) * 8 / 1024 / 1024 / span)
+        return "%.2f (GB)" % (float(byte) / 1024 / 1024 / 1024)
 
 
 def stats_display_format(stats, span):
     f = "cpu"
     if f in stats:
         fo = output.key_output(f)
-        if span == 0:
-            stats[fo] = ""
-        else:
-            stats[fo] = "%.2f" % (stats[f] * 100)
+        stats[fo] = "" if span == 0 else "%.2f" % (stats[f] * 100)
     f = "memory"
     if f in stats:
         fo = output.key_output(f)
-        if span == 0:
-            stats[fo] = ""
-        else:
-            stats[fo] = "%.3f" % (float(stats[f]) / 1024 / 1024)
-
+        stats[fo] = "" if span == 0 else "%.3f" % (float(stats[f]) / 1024 / 1024)
     f = "packet_in"
     if f in stats:
         fo = output.key_output(f)
@@ -97,9 +90,10 @@ def stats_display_format(stats, span):
 def user_role_domains_display_format(user):
     user[RoleDomains] = ""
     if user.get("role_domains"):
-        rlist = []
-        for role, domains in iter(user["role_domains"].items()):
-            rlist.append("%s -> %s" % (",".join(domains), role))
+        rlist = [
+            f'{",".join(domains)} -> {role}'
+            for role, domains in iter(user["role_domains"].items())
+        ]
         user[RoleDomains] = "\n".join(rlist)
 
 
@@ -109,7 +103,7 @@ def get_managed_object_id(clt, path, obj, id_or_name):
         item = clt.show(path, obj, id_or_name)
         return item["id"] if "id" in item else None
     except client.ObjectNotFound:
-        items = clt.list(path, obj, id="prefix,%s" % id_or_name, brief=True)
+        items = clt.list(path, obj, id=f"prefix,{id_or_name}", brief=True)
         if len(items) == 0:
             items = clt.list(path, obj, name=id_or_name, brief=True)
 
@@ -122,7 +116,7 @@ def get_managed_object(clt, path, obj, id_or_name):
     try:
         item = clt.show(path, obj, id_or_name)
     except client.ObjectNotFound:
-        items = clt.list(path, obj, id="prefix,%s" % id_or_name, brief=True)
+        items = clt.list(path, obj, id=f"prefix,{id_or_name}", brief=True)
         if len(items) == 0:
             items = clt.list(path, obj, name=id_or_name, brief=True)
 
@@ -130,14 +124,10 @@ def get_managed_object(clt, path, obj, id_or_name):
             click.echo("Error: Multiple matches found. Use ID instead.")
             return
         elif len(items) == 0:
-            click.echo("Error: Unable to find the %s '%s'." % (obj, id_or_name))
+            click.echo(f"Error: Unable to find the {obj} '{id_or_name}'.")
             return
 
-        if "id" in items[0]:
-            item = clt.show(path, obj, items[0]["id"])
-        else:
-            item = item[0]
-
+        item = clt.show(path, obj, items[0]["id"]) if "id" in items[0] else item[0]
     return item
 
 
@@ -167,10 +157,7 @@ def parse_username_domain(full):
 
 
 def get_username_domain(username, domain):
-    if domain:
-        return username + client.UserDomainDelimiter + domain
-    else:
-        return username
+    return username + client.UserDomainDelimiter + domain if domain else username
 
 
 def list_format_ip2workload(wl):
@@ -186,18 +173,14 @@ def list_format_ip2workload(wl):
 
 
 def filter_value_include(f):
-    return "in,%s" % f
+    return f"in,{f}"
 
 
 def is_fed_master(data):
     resp = data.client.show("fed/member", None, None)
-    if resp is None or (resp["fed_role"] != clusterRoleMaster):
-        return False
-    return True
+    return resp is not None and resp["fed_role"] == clusterRoleMaster
 
 
 def is_fed_joint(data):
     resp = data.client.show("fed/member", None, None)
-    if resp is None or (resp["fed_role"] != clusterRoleJoint):
-        return False
-    return True
+    return resp is not None and resp["fed_role"] == clusterRoleJoint

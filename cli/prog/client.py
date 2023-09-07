@@ -141,9 +141,9 @@ class RestClient(object):
         global RemoteCluster
         url = urlLocal  # ex: "https://neuvector-svc-controller.neuvector:10443/v1/auth"
         if urlLocal.find(self.url) == 0:
-            uri = urlLocal[len(self.url):]  # ex: "/v1/auth"
             if RemoteCluster["id"] != "":
                 fixURL = True
+                uri = urlLocal[len(self.url):]  # ex: "/v1/auth"
                 if uri in LocalClusterRequests:
                     fixURL = False  # do not change URL
                 else:
@@ -155,16 +155,15 @@ class RestClient(object):
                                 if sub.find("/") < 0:
                                     fixURL = False  # do not change URL
                                     break
-                        else:
-                            if uri.find(prefix) == 0:
-                                fixURL = False  # do not change URL
-                                break
+                        elif uri.find(prefix) == 0:
+                            fixURL = False  # do not change URL
+                            break
                 if fixURL:  # this is a request for remote cluster
-                    url = "{}/v1/fed/cluster/{}{}".format(self.url, RemoteCluster["id"], uri)
-                    # print "[DEBUG] from remote cluster, id: {}\n".format(RemoteCluster["id"])
-                    # print "[DEBUG] Sending request to url {}\n".format(url) ##=>
+                    url = f'{self.url}/v1/fed/cluster/{RemoteCluster["id"]}{uri}'
+                                # print "[DEBUG] from remote cluster, id: {}\n".format(RemoteCluster["id"])
+                                # print "[DEBUG] Sending request to url {}\n".format(url) ##=>
         if self.debug:
-            print("URL: " + method + " " + url)
+            print(f"URL: {method} {url}")
             # for key in self.sess.headers:
             #     print "%s: %s" % (key, self.sess.headers[key])
             print("Body:")
@@ -236,9 +235,7 @@ class RestClient(object):
             raise AlreadyLogin(user=username)
 
         body = {"password": {"username": username, "password": password}}
-        status, _, text, data = self._request("POST",
-                                              self.url + '/v1/auth',
-                                              body=body)
+        status, _, text, data = self._request("POST", f'{self.url}/v1/auth', body=body)
         if status == requests.codes.ok:
             global RemoteCluster
             RemoteCluster = {"id": ""}
@@ -252,23 +249,21 @@ class RestClient(object):
                 return data["token"], data["password_days_until_expire"]
             else:
                 raise ResponseError(msg=data)
+        elif self._errcode(data) == self.RESTErrTooManyLoginUser:
+            raise TooManyLogin()
+        elif self._errcode(data) == self.RESTErrUserLoginBlocked:
+            raise LoginBlocked()
+        elif self._errcode(data) == self.RESTErrPasswordExpired:
+            raise LoginPwsExpired()
         else:
-            if self._errcode(data) == self.RESTErrTooManyLoginUser:
-                raise TooManyLogin()
-            elif self._errcode(data) == self.RESTErrUserLoginBlocked:
-                raise LoginBlocked()
-            elif self._errcode(data) == self.RESTErrPasswordExpired:
-                raise LoginPwsExpired()
-            else:
-                raise LoginFailure()
+            raise LoginFailure()
 
     def logout(self):
         if not self._token():
             return
 
         try:
-            status, _, _, data = self._request("DELETE",
-                                               self.url + '/v1/auth')
+            status, _, _, data = self._request("DELETE", f'{self.url}/v1/auth')
         except RestException:
             pass
 
@@ -281,36 +276,36 @@ class RestClient(object):
             raise Unauthorized()
 
         # Make query url with sort parameters
-        url = "%s/v1/%s" % (self.url, path)
-        if sort or len(kwargs) > 0:
+        url = f"{self.url}/v1/{path}"
+        if sort or kwargs:
             url += "?"
             if sort:
-                if not sort_dir or (sort_dir != "asc" and sort_dir != "desc"):
+                if not sort_dir or sort_dir not in ["asc", "desc"]:
                     sort_dir = "asc"
 
-                url += "s_%s=%s&" % (sort, sort_dir)
+                url += f"s_{sort}={sort_dir}&"
             for key, value in iter(kwargs.items()):
-                if key == 'start':
-                    url += "start=%s&" % value
+                if key == 'brief':
+                    url += f"brief={value}&"
                 elif key == 'limit':
-                    url += "limit=%s&" % value
-                elif key == 'brief':
-                    url += "brief=%s&" % value
-                elif key == 'with_cap':
-                    url += "with_cap=%s&" % value
-                elif key == 'verbose':
-                    url += "verbose=%s&" % value
-                elif key == 'view':
-                    url += "view=%s&" % value
+                    url += f"limit={value}&"
                 elif key == 'scope':
-                    url += "scope=%s&" % value
+                    url += f"scope={value}&"
+                elif key == 'start':
+                    url += f"start={value}&"
+                elif key == 'verbose':
+                    url += f"verbose={value}&"
+                elif key == 'view':
+                    url += f"view={value}&"
+                elif key == 'with_cap':
+                    url += f"with_cap={value}&"
                 else:
-                    url += "f_%s=%s&" % (key, value)
+                    url += f"f_{key}={value}&"
             url = url.rstrip("&")
 
         status, _, _, data = self._request("GET", url)
 
-        json_header = obj + "s"
+        json_header = f"{obj}s"
         if status == requests.codes.ok:
             # Don't use 'get', array can be empty
             if json_header in data:
@@ -324,35 +319,35 @@ class RestClient(object):
         if not self._token():
             raise Unauthorized()
 
-        if obj_id == None:
-            url = "%s/v1/%s" % (self.url, path)
+        if obj_id is None:
+            url = f"{self.url}/v1/{path}"
         else:
-            url = "%s/v1/%s/%s" % (self.url, path, obj_id)
-        if len(kwargs) > 0:
+            url = f"{self.url}/v1/{path}/{obj_id}"
+        if kwargs:
             url += "?"
             for key, value in iter(kwargs.items()):
                 if key == 'brief':
-                    url += "brief=%s&" % value
-                elif key == 'with_cap':
-                    url += "with_cap=%s&" % value
-                elif key == 'verbose':
-                    url += "verbose=%s&" % value
-                elif key == 'view':
-                    url += "view=%s&" % value
+                    url += f"brief={value}&"
                 elif key == 'scope':
-                    url += "scope=%s&" % value
+                    url += f"scope={value}&"
                 elif key == 'show':
-                    url += "show=%s&" % value
+                    url += f"show={value}&"
                 elif key == 'token_duration':
-                    url += "token_duration=%s&" % value
+                    url += f"token_duration={value}&"
+                elif key == 'verbose':
+                    url += f"verbose={value}&"
+                elif key == 'view':
+                    url += f"view={value}&"
+                elif key == 'with_cap':
+                    url += f"with_cap={value}&"
                 else:
-                    url += "f_%s=%s&" % (key, value)
+                    url += f"f_{key}={value}&"
             url = url.rstrip("&")
         status, _, _, data = self._request("GET", url)
 
         json_header = obj
         if status == requests.codes.ok:
-            if not obj:
+            if not json_header:
                 return data
             elif json_header in data:
                 return data[json_header]
@@ -365,11 +360,11 @@ class RestClient(object):
         if not self._token():
             raise Unauthorized()
 
-        url = "%s/v1/%s" % (self.url, path)
-        if len(kwargs) > 0:
+        url = f"{self.url}/v1/{path}"
+        if kwargs:
             url += "?"
             for key, value in iter(kwargs.items()):
-                url += "f_%s=%s&" % (key, value)
+                url += f"f_{key}={value}&"
             url = url.rstrip("&")
 
         status, _, _, data = self._request("POST", url, body=body)
@@ -383,14 +378,11 @@ class RestClient(object):
         if not self._token():
             raise Unauthorized()
 
-        url = "%s/v1/%s/%s" % (self.url, path, obj_id)
-        if len(kwargs) > 0:
+        url = f"{self.url}/v1/{path}/{obj_id}"
+        if kwargs:
             url += "?"
             for key, value in iter(kwargs.items()):
-                if key == 'scope':
-                    url += "scope=%s&" % value
-                else:
-                    url += "f_%s=%s&" % (key, value)
+                url += f"scope={value}&" if key == 'scope' else f"f_{key}={value}&"
             url = url.rstrip("&")
         status, _, _, data = self._request("PATCH", url, body=body)
 
@@ -403,17 +395,14 @@ class RestClient(object):
         if not self._token():
             raise Unauthorized()
 
-        if obj_id == None:
-            url = "%s/v1/%s" % (self.url, path)
+        if obj_id is None:
+            url = f"{self.url}/v1/{path}"
         else:
-            url = "%s/v1/%s/%s" % (self.url, path, obj_id)
-        if len(kwargs) > 0:
+            url = f"{self.url}/v1/{path}/{obj_id}"
+        if kwargs:
             url += "?"
             for key, value in iter(kwargs.items()):
-                if key == 'scope':
-                    url += "scope=%s&" % value
-                else:
-                    url += "f_%s=%s&" % (key, value)
+                url += f"scope={value}&" if key == 'scope' else f"f_{key}={value}&"
             url = url.rstrip("&")
 
         status, _, _, data = self._request("DELETE", url)
@@ -426,14 +415,14 @@ class RestClient(object):
         if not self._token():
             raise Unauthorized()
 
-        if obj_id == None:
-            status, _, _, data = self._request("POST",
-                                               "%s/v1/%s/%s" % (self.url, path, obj),
-                                               body=body)
+        if obj_id is None:
+            status, _, _, data = self._request(
+                "POST", f"{self.url}/v1/{path}/{obj}", body=body
+            )
         else:
-            status, _, _, data = self._request("POST",
-                                               "%s/v1/%s/%s/%s" % (self.url, path, obj, obj_id),
-                                               body=body)
+            status, _, _, data = self._request(
+                "POST", f"{self.url}/v1/{path}/{obj}/{obj_id}", body=body
+            )
         if status == requests.codes.ok:
             return data
 
@@ -443,14 +432,14 @@ class RestClient(object):
         if not self._token():
             raise Unauthorized()
 
-        if obj_id == None:
-            status, _, text, data = self._request("POST",
-                                                  "%s/v1/%s/%s" % (self.url, path, obj),
-                                                  body=body)
+        if obj_id is None:
+            status, _, text, data = self._request(
+                "POST", f"{self.url}/v1/{path}/{obj}", body=body
+            )
         else:
-            status, _, text, data = self._request("POST",
-                                                  "%s/v1/%s/%s/%s" % (self.url, path, obj, obj_id),
-                                                  body=body)
+            status, _, text, data = self._request(
+                "POST", f"{self.url}/v1/{path}/{obj}/{obj_id}", body=body
+            )
         if status == requests.codes.ok:
             return text
 
@@ -460,16 +449,16 @@ class RestClient(object):
         if not self._token():
             raise Unauthorized()
 
-        url = "%s/v1/%s" % (self.url, path)
-        if len(kwargs) > 0:
+        url = f"{self.url}/v1/{path}"
+        if kwargs:
             url += "?"
             for key, value in iter(kwargs.items()):
-                if key == 'start':
-                    url += "start=%s&" % value
-                elif key == 'limit':
-                    url += "limit=%s&" % value
+                if key == 'limit':
+                    url += f"limit={value}&"
+                elif key == 'start':
+                    url += f"start={value}&"
                 else:
-                    url += "f_%s=%s&" % (key, value)
+                    url += f"f_{key}={value}&"
             url = url.rstrip("&")
 
         if body is None:
@@ -485,18 +474,17 @@ class RestClient(object):
         if not self._token():
             raise Unauthorized()
 
-        url = "%s/v1/%s" % (self.url, path)
+        url = f"{self.url}/v1/{path}"
         headers = {"X-Auth-Token": self._token()}
 
         if self.debug:
-            print("URL: POST " + url)
+            print(f"URL: POST {url}")
 
         try:
             # import pdb; pdb.set_trace()
             if raw:
-                f = open(filename)
-                data = f.read()
-                f.close()
+                with open(filename) as f:
+                    data = f.read()
                 headers["Content-Type"] = "text/plain"
                 resp = requests.post(url, headers=headers, data=data, verify=False)
             else:
@@ -513,7 +501,7 @@ class RestClient(object):
             return True
 
         if self.debug:
-            print("resp: {} {}".format(resp.status_code, resp.text))
+            print(f"resp: {resp.status_code} {resp.text}")
         self._handle_common_error(resp.status_code, resp.json())
 
         return resp
@@ -522,29 +510,27 @@ class RestClient(object):
         if not self._token():
             raise Unauthorized()
 
-        url = "%s/v1/%s" % (
-        self.url, path)  # ex: "https://neuvector-svc-controller.neuvector:10443/v1/assess/admission/rule"
+        url = f"{self.url}/v1/{path}"
         urlLocal = url
         global RemoteCluster
         if urlLocal.find(self.url) == 0:
             uri = urlLocal[len(self.url):]  # ex: "/v1/assess/admission/rule"
             if RemoteCluster["id"] != "":
                 # this is a request for remote cluster
-                url = "{}/v1/fed/cluster/{}{}".format(self.url, RemoteCluster["id"], uri)
+                url = f'{self.url}/v1/fed/cluster/{RemoteCluster["id"]}{uri}'
         headers = {"X-Auth-Token": self._token()}
 
         if self.debug:
-            print("URL: POST " + url)
+            print(f"URL: POST {url}")
 
         try:
             # import pdb; pdb.set_trace()
             if raw:
-                f = open(filename)
-                data = f.read()
-                f.close()
+                with open(filename) as f:
+                    data = f.read()
                 headers["Content-Type"] = "text/plain"
                 resp = requests.post(url, headers=headers, data=data, verify=False)
-                # status, _, _, data = self._request("POST", url, body=body)
+                        # status, _, _, data = self._request("POST", url, body=body)
             else:
                 files = {'configuration': open(filename, 'rb')}
                 resp = requests.post(url, headers=headers, files=files, verify=False)
@@ -556,7 +542,7 @@ class RestClient(object):
             raise RequestError()
 
         if self.debug:
-            print("resp: {} {}".format(resp.status_code, resp.text))
+            print(f"resp: {resp.status_code} {resp.text}")
         if resp.status_code != requests.codes.ok:
             self._handle_common_error(resp.status_code, resp.json())
         return resp
@@ -566,20 +552,20 @@ class RestClient(object):
         if not self._token():
             raise Unauthorized()
 
-        url = "%s/v1/%s" % (self.url, path) # ex: "https://neuvector-svc-controller.neuvector:10443/v1/file/group/config"
+        url = f"{self.url}/v1/{path}"
         urlLocal = url
         global RemoteCluster
         if urlLocal.find(self.url) == 0:
             uri = urlLocal[len(self.url):]  # ex: "/v1/file/group/config"
             if RemoteCluster["id"] != "":
                 # this is a request for remote cluster
-                url = "{}/v1/fed/cluster/{}{}".format(self.url, RemoteCluster["id"], uri)
+                url = f'{self.url}/v1/fed/cluster/{RemoteCluster["id"]}{uri}'
         headers = {"X-Auth-Token": self._token()}
         if standalone != None:
             headers["X-As-Standalone"] = standalone
 
         if self.debug:
-            print("URL: POST " + url)
+            print(f"URL: POST {url}")
 
         try:
             # import pdb; pdb.set_trace()
@@ -587,9 +573,8 @@ class RestClient(object):
                 headers["X-Transaction-ID"] = tid
                 resp = requests.post(url, headers=headers, data="", verify=False)
             elif raw:
-                f = open(filename)
-                data = f.read()
-                f.close()
+                with open(filename) as f:
+                    data = f.read()
                 headers["Content-Type"] = "text/plain"
                 resp = requests.post(url, headers=headers, data=data, verify=False)
             else:
@@ -597,7 +582,7 @@ class RestClient(object):
                 resp = requests.post(url, headers=headers, files=files, verify=False)
         except requests.exceptions.ConnectionError:
             importData = self.show("file/group", "data", "config")
-            if importData["status"] == "importing" or importData["status"] == "preparing":
+            if importData["status"] in ["importing", "preparing"]:
                 raise RestRequestErrorNoMsg(err="Failed to import: Another import is ongoing")
             else:
                 raise ConnectionError()
@@ -618,8 +603,9 @@ class RestClient(object):
             return resp
 
         if tid != "" and iter >= 1:
-            if self._errcode(resp.json()) == self.RESTErrUnauthorized and (
-                    resp.status_code == 401 or resp.status_code == 408):
+            if self._errcode(
+                resp.json()
+            ) == self.RESTErrUnauthorized and resp.status_code in [401, 408]:
                 # Use temp token
                 self.sess.headers.update({"X-Auth-Token": tempToken})
                 resp = self.importConfig(path, filename, raw, standalone, tid, iter, "")
@@ -635,15 +621,12 @@ class RestClient(object):
         if not self._token():
             raise Unauthorized()
 
-        conf = {}
-        for key, value in iter(kwargs.items()):
-            conf[key] = value
-
+        conf = dict(iter(kwargs.items()))
         body = {"config": conf}
 
-        status, _, _, data = self._request("PATCH",
-                                           "%s/v1/system/config" % self.url,
-                                           body=body)
+        status, _, _, data = self._request(
+            "PATCH", f"{self.url}/v1/system/config", body=body
+        )
 
         if status == requests.codes.ok:
             return True
@@ -654,15 +637,12 @@ class RestClient(object):
         if not self._token():
             raise Unauthorized()
 
-        conf = {}
-        for key, value in kwargs.items():
-            conf[key] = value
-
+        conf = dict(kwargs)
         body = {"net_config": conf}
 
-        status, _, _, data = self._request("PATCH",
-                                           "%s/v1/system/config" % self.url,
-                                           body=body)
+        status, _, _, data = self._request(
+            "PATCH", f"{self.url}/v1/system/config", body=body
+        )
 
         if status == requests.codes.ok:
             return True
@@ -673,15 +653,12 @@ class RestClient(object):
         if not self._token():
             raise Unauthorized()
 
-        conf = {}
-        for key, value in kwargs.items():
-            conf[key] = value
-
+        conf = dict(kwargs)
         body = {"atmo_config": conf}
 
-        status, _, _, data = self._request("PATCH",
-                                           "%s/v1/system/config" % self.url,
-                                           body=body)
+        status, _, _, data = self._request(
+            "PATCH", f"{self.url}/v1/system/config", body=body
+        )
 
         if status == requests.codes.ok:
             return True

@@ -35,7 +35,9 @@ def verify_default_role(data, arg, default_role):
                 r = "none"
             display_roles.append(r)
 
-        click.echo("Invalid default role. Supported default roles: {}".format(', '.join(display_roles)))
+        click.echo(
+            f"Invalid default role. Supported default roles: {', '.join(display_roles)}"
+        )
         click.echo("")
         return False
 
@@ -91,12 +93,16 @@ def _show_role_mapping_display_format(server, server_type):
         aaa = server[server_type].get("group_mapped_roles")
         mlist = []
         for mapped_roles in server[server_type]["group_mapped_roles"]:
-            mlist.append("group: %s" % mapped_roles["group"])
+            mlist.append(f'group: {mapped_roles["group"]}')
             if mapped_roles["global_role"] != "":
-                mlist.append("   global domain -> %s" % (mapped_roles["global_role"]))
+                mlist.append(f'   global domain -> {mapped_roles["global_role"]}')
             if "role_domains" in mapped_roles:
-                for role, domains in iter(mapped_roles["role_domains"].items()):
-                    mlist.append("   namespace(s) %s -> %s" % (",".join(domains), role))
+                mlist.extend(
+                    f'   namespace(s) {",".join(domains)} -> {role}'
+                    for role, domains in iter(
+                        mapped_roles["role_domains"].items()
+                    )
+                )
         server[RoleMapping] = "\n".join(mlist)
 
 
@@ -124,11 +130,15 @@ def show_server_mappable_roles(data):
             mappable_group_roles[index] = "none"
 
     click.echo("")
-    click.echo("Supported default roles: {}".format(', '.join(mappable_default_roles)))
+    click.echo(f"Supported default roles: {', '.join(mappable_default_roles)}")
     click.echo("")
-    click.echo("Supported mappable roles to global domain for group: {}".format(', '.join(mappable_group_roles)))
+    click.echo(
+        f"Supported mappable roles to global domain for group: {', '.join(mappable_group_roles)}"
+    )
     click.echo("")
-    click.echo("Supported mappable roles to namespaces for group: {}".format(', '.join(mappable_group_domain_roles)))
+    click.echo(
+        f"Supported mappable roles to namespaces for group: {', '.join(mappable_group_domain_roles)}"
+    )
     click.echo("")
 
 
@@ -145,7 +155,7 @@ def show_server_ldap(data):
             "default_role"))
         _show_role_mapping_display_format(s, "ldap")
 
-    click.echo("Total LDAP servers: %s" % len(servers))
+    click.echo(f"Total LDAP servers: {len(servers)}")
     columns = (
         "server_name", "enable", "directory", "hostname", "port", "base_dn", "ssl", "bind_dn", "group_member_attr",
         "username_attr", "default_role", RoleMapping)
@@ -162,7 +172,7 @@ def show_server_saml(data):
         output.lift_fields(s, "saml", ("sso_url", "issuer", "enable", "default_role"))
         _show_role_mapping_display_format(s, "saml")
 
-    click.echo("Total SAML servers: %s" % len(servers))
+    click.echo(f"Total SAML servers: {len(servers)}")
     columns = ("sso_url", "issuer", "enable", "default_role", RoleMapping)
     output.list(columns, servers)
 
@@ -178,7 +188,7 @@ def show_server_oidc(data):
             "issuer", "authorization_endpoint", "token_endpoint", "user_info_endpoint", "enable", "default_role"))
         _show_role_mapping_display_format(s, "oidc")
 
-    click.echo("Total OpenID Connect servers: %s" % len(servers))
+    click.echo(f"Total OpenID Connect servers: {len(servers)}")
     columns = ("issuer", "authorization_endpoint", "token_endpoint", "user_info_endpoint", "enable", "default_role")
     output.list(columns, servers)
 
@@ -215,7 +225,7 @@ def show_server_detail(data, name):
 @click.pass_obj
 def show_server_user(data, name):
     """Show server user."""
-    users = data.client.list("server/%s/user" % name, "user")
+    users = data.client.list(f"server/{name}/user", "user")
     for u in users:
         utils.user_role_domains_display_format(u)
 
@@ -415,7 +425,7 @@ def set_server_ldap_config(data, hostname, base, enable, default_role, directory
         ldap["port"] = port
     if ssl != None:
         doit = True
-        ldap["ssl"] = True if ssl == 'enable' else False
+        ldap["ssl"] = ssl == 'enable'
     if group_member_attr != None:
         doit = True
         ldap["group_member_attr"] = group_member_attr
@@ -452,7 +462,9 @@ def set_server_ldap_role(data, role, group):
 
     if len(group) > 0:
         role_group = {"name": data.id_or_name, "role": role, "groups": group}
-        data.client.config("server", "%s/role/%s" % (data.id_or_name, role), {"config": role_group})
+        data.client.config(
+            "server", f"{data.id_or_name}/role/{role}", {"config": role_group}
+        )
     else:
         click.echo("Please specify at least one group.")
 
@@ -476,9 +488,7 @@ def set_server_ldap_group_role(data, group, global_role, role_domains):
     for one_role_domains in role_domains:
         list = one_role_domains.split(":")
         if len(list) == 2:
-            domains = []
-            for domain in list[1].split(","):
-                domains.append(domain)
+            domains = list(list[1].split(","))
             roleDomains[list[0]] = domains
 
     if verify_group_role_ex(data, arg, group, global_role, roleDomains) is False:
@@ -486,7 +496,11 @@ def set_server_ldap_group_role(data, group, global_role, role_domains):
 
     mapped_roles["role_domains"] = roleDomains
     group_role_domains = {"name": data.id_or_name, "mapped_roles": mapped_roles}
-    data.client.config("server", "%s/group/%s" % (data.id_or_name, group), {"config": group_role_domains})
+    data.client.config(
+        "server",
+        f"{data.id_or_name}/group/{group}",
+        {"config": group_role_domains},
+    )
 
 
 @set_server_ldap.command("group_mapping_order")
@@ -497,7 +511,9 @@ def set_server_ldap_groups_mapping_order(data, group):
     groups in their original sequence. Groups that have fedAdmin/fedReader role mapping for global domain have higher
     priority """
     groups_order = {"name": data.id_or_name, "groups": group}
-    data.client.config("server", "%s/groups" % (data.id_or_name), {"config": groups_order})
+    data.client.config(
+        "server", f"{data.id_or_name}/groups", {"config": groups_order}
+    )
 
 
 # unset
@@ -550,7 +566,9 @@ def unset_server_ldap_role(data, role):
         return
 
     role_group = {"name": data.id_or_name, "role": role}
-    data.client.config("server", "%s/role/%s" % (data.id_or_name, role), {"config": role_group})
+    data.client.config(
+        "server", f"{data.id_or_name}/role/{role}", {"config": role_group}
+    )
 
 
 @unset_server_ldap.command("group_role")
@@ -560,7 +578,11 @@ def unset_server_ldap_group_role(data, group):
     """Unset one group's domain roles mapping of LDAP server."""
     mapped_roles = {"group": group}
     group_role_domains = {"name": data.id_or_name, "group": group, "mapped_roles": mapped_roles}
-    data.client.config("server", "%s/group/%s" % (data.id_or_name, group), {"config": group_role_domains})
+    data.client.config(
+        "server",
+        f"{data.id_or_name}/group/{group}",
+        {"config": group_role_domains},
+    )
 
 
 # delete

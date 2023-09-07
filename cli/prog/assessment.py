@@ -30,5 +30,5 @@ def request_assessment_admission_rule(data, filename):
         else:
             click.echo("Error: unexpected response {}", resp)
     except IOError:
-        click.echo("Error: Failed to read file %s" % click.format_filename(filename))
+        click.echo(f"Error: Failed to read file {click.format_filename(filename)}")
     click.echo("")

@@ -30,17 +30,15 @@ def _show_display_format(wl):
         fo = output.key_output(f)
         s = ""
         for a in wl[f]:
-            s += a + ","
+            s += f"{a},"
             if len(s) >= WidthApplication:
                 s = s[:-1] + "\n"
         wl[fo] = s[:-1]
     f = "labels"
     if wl.get(f):
         fo = output.key_output(f)
-        kv = ""
         keys = sorted(wl[f].keys())
-        for key in keys:
-            kv += "%s=%s\n" % (key, wl[f][key])
+        kv = "".join("%s=%s\n" % (key, wl[f][key]) for key in keys)
         wl[fo] = kv.rstrip("\n")
     f = "ports"
     if wl.get(f):
@@ -101,7 +99,7 @@ def show_workload(ctx, data, brief, view, filter_container, filter_image, filter
 
     while True:
         wls = data.client.list("workload", "workload", **args)
-        if wls == None:
+        if wls is None:
             break
 
         for wl in wls:
@@ -109,12 +107,10 @@ def show_workload(ctx, data, brief, view, filter_container, filter_image, filter
 
         if brief:
             columns = ["id", "name", "service", "state"]
-            output.list(columns, wls)
         else:
             columns = ["id", "name", "host_name", "image", "service_group", "state", "platform_role", "applications", "started_at",
                        "interfaces"]
-            output.list(columns, wls)
-
+        output.list(columns, wls)
         if args["limit"] > 0 and len(wls) < args["limit"]:
             break
 
@@ -153,7 +149,7 @@ def process(data, id_or_name):
         return
 
     try:
-        procs = data.client.show("workload", "processes", "%s/process" % wl["id"])
+        procs = data.client.show("workload", "processes", f'{wl["id"]}/process')
     except client.ObjectNotFound:
         return
 
@@ -171,7 +167,9 @@ def process_history(data, id_or_name):
         return
 
     try:
-        procs = data.client.show("workload", "processes", "%s/process_history" % wl["id"])
+        procs = data.client.show(
+            "workload", "processes", f'{wl["id"]}/process_history'
+        )
     except client.ObjectNotFound:
         return
 
@@ -189,7 +187,9 @@ def profile_process(data, id_or_name):
         return
 
     try:
-        profile = data.client.show("workload", "process_list", "%s/process_profile" % wl["id"])
+        profile = data.client.show(
+            "workload", "process_list", f'{wl["id"]}/process_profile'
+        )
     except client.ObjectNotFound:
         return
 
@@ -210,7 +210,7 @@ def profile_file(data, id_or_name):
         return
 
     try:
-        profile = data.client.show("workload", "filters", "%s/file_profile" % wl["id"])
+        profile = data.client.show("workload", "filters", f'{wl["id"]}/file_profile')
     except client.ObjectNotFound:
         return
 
@@ -218,9 +218,8 @@ def profile_file(data, id_or_name):
         v = []
         apps = p["applications"]
         if apps != None:
-            for a in apps:
-                v.append(a)
-        p["applications"] = "{}".format(", ".join(v))
+            v.extend(iter(apps))
+        p["applications"] = f'{", ".join(v)}'
         p["type"] = client.CfgTypeDisplay[p["cfg_type"]]
 
     columns = ("filter", "recursive", "behavior", "applications", "type", "group")
@@ -237,29 +236,26 @@ def stats(data, id_or_name):
         return
 
     try:
-        stats = data.client.show("workload", "stats", "%s/stats" % wl["id"])
+        stats = data.client.show("workload", "stats", f'{wl["id"]}/stats')
     except client.ObjectNotFound:
         return
-
-    display = []
 
     span = 0
     stats["total"]["duration"] = "Total"
     utils.stats_display_format(stats["total"], span)
-    display.append(stats["total"])
-
+    display = [stats["total"]]
     span = stats["interval"]
-    stats["span_1"]["duration"] = "Last %ss" % span
+    stats["span_1"]["duration"] = f"Last {span}s"
     utils.stats_display_format(stats["span_1"], span)
     display.append(stats["span_1"])
 
     span = stats["interval"] * 12
-    stats["span_12"]["duration"] = "Last %ss" % span
+    stats["span_12"]["duration"] = f"Last {span}s"
     utils.stats_display_format(stats["span_12"], span)
     display.append(stats["span_12"])
 
     span = stats["interval"] * 60
-    stats["span_60"]["duration"] = "Last %ss" % span
+    stats["span_60"]["duration"] = f"Last {span}s"
     utils.stats_display_format(stats["span_60"], span)
     display.append(stats["span_60"])
 
@@ -285,7 +281,7 @@ def setting(data, id_or_name):
         return
 
     try:
-        conf = data.client.show("workload", "config", "%s/config" % wl["id"])
+        conf = data.client.show("workload", "config", f'{wl["id"]}/config')
     except client.ObjectNotFound:
         return
 
@@ -337,11 +333,12 @@ def set_workload(data, id_or_name):
 @click.pass_obj
 def wire(data, mode):
     """Set container wire mode. default: Follow policy mode configuration."""
-    wl = utils.get_managed_object(data.client, "workload", "workload", data.id_or_name)
-    if not wl:
+    if wl := utils.get_managed_object(
+        data.client, "workload", "workload", data.id_or_name
+    ):
+        data.client.config("workload", wl["id"], {"config": {"wire": mode}})
+    else:
         return
-
-    data.client.config("workload", wl["id"], {"config": {"wire": mode}})
 
 
 @set_workload.command()
@@ -406,28 +403,19 @@ def request_workload_start(data):
 @click.pass_obj
 def request_workload_logs(data, filename, dir, size):
     """Request container logs"""
-    filter = {}
-
     wl = utils.get_managed_object(data.client, "workload", "workload", data.id_or_name)
     if not wl:
         return
-    path = "workload/%s/logs" % wl["id"]
+    path = f'workload/{wl["id"]}/logs'
     container_id = wl["id"]
 
-    if dir == 'start':
-        filter["start"] = 0
-    else:
-        filter["start"] = -1
+    filter = {"start": 0 if dir == 'start' else -1}
     if size:
         filter["limit"] = size * 1024 * 1024
 
     headers, body = data.client.download(path, **filter)
 
-    if filename:
-        filepath = filename
-    else:
-        filepath = container_id + ".log"
-
+    filepath = filename if filename else f"{container_id}.log"
     with click.open_file(filepath, 'w') as wfp:
-        click.echo("Save logs to: %s" % filepath)
+        click.echo(f"Save logs to: {filepath}")
         wfp.write(body.content)

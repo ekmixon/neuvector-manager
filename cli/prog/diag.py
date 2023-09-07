@@ -21,8 +21,8 @@ def _output_one_session(s):
                 "ingress" if s.get("ingress") else "egress",
                 "tap" if s.get("tap") else "",
                 "mid-stream" if s.get("mid_stream") else ""))
-    click.echo("  eth: %s -> %s" % (s["client_mac"], s["server_mac"]))
-    if s["ip_proto"] == 1 or s["ip_proto"] == 58:  # ICMP or ICMPv6
+    click.echo(f'  eth: {s["client_mac"]} -> {s["server_mac"]}')
+    if s["ip_proto"] in [1, 58]:  # ICMP or ICMPv6
         click.echo("  addr: %s -> %s type=%d code=%d" %
                    (s["client_ip"], s["server_ip"], s["icmp_type"], s["icmp_code"]))
     else:
@@ -55,20 +55,21 @@ def session(data):
 @click.option("-e", "--enforcer", default=None, help="filter sessions by enforcer")
 @click.option("-c", "--container", default=None, help="filter sessions by container")
 @click.option("--id", default=None, help="filter sessions by session id")
-@click.option("--page", default=20, type=click.IntRange(1, MAX_PAGE_SIZE, clamp=True),
-              help="list page size [1, %s], default=20" % MAX_PAGE_SIZE)
+@click.option("--page", default=20, type=click.IntRange(1, MAX_PAGE_SIZE, clamp=True), help=f"list page size [1, {MAX_PAGE_SIZE}], default=20")
 @click.pass_obj
 def list(data, enforcer, container, id, page):
     """list session."""
     try:
         filter = {}
         if enforcer:
-            obj = utils.get_managed_object(data.client, "enforcer", "enforcer", enforcer)
-            if obj:
+            if obj := utils.get_managed_object(
+                data.client, "enforcer", "enforcer", enforcer
+            ):
                 filter["enforcer"] = obj["id"]
         if container:
-            obj = utils.get_managed_object(data.client, "workload", "workload", container)
-            if obj:
+            if obj := utils.get_managed_object(
+                data.client, "workload", "workload", container
+            ):
                 filter["workload"] = obj["id"]
         if id:
             filter["id"] = id
@@ -79,7 +80,7 @@ def list(data, enforcer, container, id, page):
         while True:
             sessions = data.client.list("session", "session", **filter)
             # Specifically check 'None', instead of 'not sessions'
-            if sessions == None:
+            if sessions is None:
                 break
 
             for s in sessions:
@@ -109,8 +110,9 @@ def summary(data, enforcer):
     try:
         filter = {}
         if enforcer:
-            obj = utils.get_managed_object(data.client, "enforcer", "enforcer", enforcer)
-            if obj:
+            if obj := utils.get_managed_object(
+                data.client, "enforcer", "enforcer", enforcer
+            ):
                 filter["enforcer"] = obj["id"]
 
         summary = data.client.show("session", "summary", "summary", **filter)
@@ -134,8 +136,9 @@ def delete_session(data, enforcer, id):
     try:
         filter = {}
         if enforcer:
-            obj = utils.get_managed_object(data.client, "enforcer", "enforcer", enforcer)
-            if obj:
+            if obj := utils.get_managed_object(
+                data.client, "enforcer", "enforcer", enforcer
+            ):
                 filter["enforcer"] = obj["id"]
         if id:
             filter["id"] = id
@@ -164,8 +167,7 @@ def _output_one_meter(s):
 @show.group(invoke_without_command=True)
 @click.option("-e", "--enforcer", default=None, help="filter meters by enforcer")
 @click.option("-c", "--container", default=None, help="filter meters by container")
-@click.option("--page", default=20, type=click.IntRange(1, MAX_PAGE_SIZE, clamp=True),
-              help="list page size [1, %s], default=20" % MAX_PAGE_SIZE)
+@click.option("--page", default=20, type=click.IntRange(1, MAX_PAGE_SIZE, clamp=True), help=f"list page size [1, {MAX_PAGE_SIZE}], default=20")
 @click.pass_obj
 @click.pass_context
 def meter(ctx, data, enforcer, container, page):
@@ -176,12 +178,14 @@ def meter(ctx, data, enforcer, container, page):
     try:
         filter = {}
         if enforcer:
-            obj = utils.get_managed_object(data.client, "enforcer", "enforcer", enforcer)
-            if obj:
+            if obj := utils.get_managed_object(
+                data.client, "enforcer", "enforcer", enforcer
+            ):
                 filter["enforcer"] = obj["id"]
         if container:
-            obj = utils.get_managed_object(data.client, "workload", "workload", container)
-            if obj:
+            if obj := utils.get_managed_object(
+                data.client, "workload", "workload", container
+            ):
                 filter["workload"] = obj["id"]
 
         filter["start"] = 0
@@ -189,7 +193,7 @@ def meter(ctx, data, enforcer, container, page):
         while True:
             meters = data.client.list("meter", "meter", **filter)
             # Specifically check 'None', instead of 'not meters'
-            if meters == None:
+            if meters is None:
                 break
 
             for m in meters:
@@ -238,8 +242,9 @@ def start_sniffer(data, id_or_name, file_count, duration, options):
     """Start sniffer."""
     filter = {}
     info = {}
-    obj = utils.get_managed_object(data.client, "workload", "workload", id_or_name)
-    if obj:
+    if obj := utils.get_managed_object(
+        data.client, "workload", "workload", id_or_name
+    ):
         filter["workload"] = obj["id"]
     else:
         return
@@ -277,14 +282,16 @@ def _write_part(part, filename):
         try:
             with click.open_file(filename, 'wb') as wfp:
                 wfp.write(part.raw)
-            click.echo("Wrote %s to %s" % (part.name, click.format_filename(filename)))
+            click.echo(f"Wrote {part.name} to {click.format_filename(filename)}")
         except IOError:
-            click.echo("Error: Failed to write %s to %s" % (part.name, click.format_filename(filename)))
+            click.echo(
+                f"Error: Failed to write {part.name} to {click.format_filename(filename)}"
+            )
     else:
         try:
             with click.open_file(part.filename, 'wb') as wfp:
                 wfp.write(part.raw)
-            click.echo("Wrote to %s" % part.filename)
+            click.echo(f"Wrote to {part.filename}")
         except IOError:
             click.echo("Error: Failed to get file from part")
 
@@ -296,7 +303,7 @@ def _write_part(part, filename):
 @click.pass_obj
 def pcap(data, filename, limit, id):
     """Download sniffer."""
-    path = "sniffer/%s/pcap" % id
+    path = f"sniffer/{id}/pcap"
     if limit:
         path += "?limit=%d" % (limit * 1024 * 1024)
     headers, body = data.client.download(path)
@@ -334,20 +341,22 @@ def show_sniffer(ctx, data, enforcer, container):
 
     filter = {}
     if enforcer:
-        obj = utils.get_managed_object(data.client, "enforcer", "enforcer", enforcer)
-        if obj:
+        if obj := utils.get_managed_object(
+            data.client, "enforcer", "enforcer", enforcer
+        ):
             filter["enforcer"] = obj["id"]
 
     if container:
-        obj = utils.get_managed_object(data.client, "workload", "workload", container)
-        if obj:
+        if obj := utils.get_managed_object(
+            data.client, "workload", "workload", container
+        ):
             filter["workload"] = obj["id"]
 
     sniffers = data.client.list("sniffer", "sniffer", **filter)
     for s in sniffers:
         _list_sniffer_format(s)
 
-    click.echo("Total sniffers: %s" % len(sniffers))
+    click.echo(f"Total sniffers: {len(sniffers)}")
     column = ("id", "status", "enforcer_id", "container_id", "size", "file_number")
     output.list(column, sniffers)
 

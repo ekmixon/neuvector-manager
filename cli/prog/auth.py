@@ -40,13 +40,13 @@ def login(data, username, password):
         if token.get("default_password"):
             click.echo(DEFAULT_PWD_WARNING)
     except client.RestException as e:
-        click.echo("Error: " + e.msg)
+        click.echo(f"Error: {e.msg}")
         return
 
     data.username = username
     msg = "\nYour password will expire in less than a day.\nPlease change your password immediately!\n"
     if password_days_until_expire > 0:
-        msg = "Your password will expire after {} day(s).\n".format(password_days_until_expire)
+        msg = f"Your password will expire after {password_days_until_expire} day(s).\n"
     if password_days_until_expire >= 0:
         click.echo(msg)
 
@@ -131,7 +131,9 @@ def create_user_local(data, username, global_role, email, locale, password, pass
             if r == "":
                 r = "\"\""
             supported_roles.append(r)
-        click.echo("Invalid role. Supported global role: {}".format(', '.join(supported_roles)))
+        click.echo(
+            f"Invalid role. Supported global role: {', '.join(supported_roles)}"
+        )
         click.echo("")
         return
 
@@ -209,17 +211,14 @@ def set_user_local_config(data, global_role, timeout, email, locale, password):
             user["password"] = current
         user["new_password"] = pass1
 
-    if (not doit) and (not doitPassword):
-        click.echo("Please specify configurations to be set.")
-    else:
-        if data.username == data.id_or_name:
-            data.client.config("user", data.id_or_name, {"config": user})
-        else:
-            if doit:
-                data.client.config("user", data.id_or_name, {"config": user})
-            else:
+    if not doit and doitPassword and data.username == data.id_or_name or doit:
+        data.client.config("user", data.id_or_name, {"config": user})
+    elif doitPassword:
                 # this api allows resetting another user's password if it has been expired
-                data.client.create("user/{}/password".format(data.id_or_name), {"config": user})
+        data.client.create(f"user/{data.id_or_name}/password", {"config": user})
+
+    else:
+        click.echo("Please specify configurations to be set.")
 
 
 @set_user_local.command("role")
@@ -231,7 +230,7 @@ def set_user_local_role(data, role, domain):
 
     if len(domain) > 0:
         user = {"fullname": data.id_or_name, "role": role, "domains": domain}
-        data.client.config("user", "%s/role/%s" % (data.id_or_name, role), {"config": user})
+        data.client.config("user", f"{data.id_or_name}/role/{role}", {"config": user})
     else:
         click.echo("Please specify at least one domain.")
 
@@ -242,7 +241,7 @@ def set_user_local_unblock(data):
     """Unblock local user so that login is allowed immediately."""
 
     cfg = {"fullname": data.id_or_name, "clear_failed_login": True}
-    data.client.create("user/{}/password".format(data.id_or_name), {"config": cfg})
+    data.client.create(f"user/{data.id_or_name}/password", {"config": cfg})
 
 
 @unset.group('user')
@@ -300,7 +299,7 @@ def unset_user_local_role(data, role):
         return
 
     user = {"fullname": data.id_or_name, "role": role}
-    data.client.config("user", "%s/role/%s" % (data.id_or_name, role), {"config": user})
+    data.client.config("user", f"{data.id_or_name}/role/{role}", {"config": user})
 
 
 @delete.group('user')
@@ -339,7 +338,7 @@ def set_user_remote(ctx, data, username, server):
 def set_user_remote_config(data, global_role, timeout, email, locale):
     """Set remote user configuration."""
 
-    fullname = "%s:%s" % (data.server, data.id_or_name)
+    fullname = f"{data.server}:{data.id_or_name}"
     user = {"fullname": fullname}
     doit = False
     if global_role != None:
@@ -377,10 +376,10 @@ def set_user_remote_role(data, role, domain):
     if valid is False:
         return
 
-    fullname = "%s:%s" % (data.server, data.id_or_name)
     if len(domain) > 0:
+        fullname = f"{data.server}:{data.id_or_name}"
         user = {"fullname": fullname, "role": role, "domains": domain}
-        data.client.config("user", "%s/role/%s" % (data.id_or_name, role), {"config": user})
+        data.client.config("user", f"{data.id_or_name}/role/{role}", {"config": user})
     else:
         click.echo("Please specify at least one domain.")
 
@@ -403,7 +402,7 @@ def unset_user_remote(ctx, data, username, server):
 @click.pass_obj
 def unset_user_remote_config(data, global_role, timeout, email):
     """Unset user configurations."""
-    fullname = "%s:%s" % (data.server, data.id_or_name)
+    fullname = f"{data.server}:{data.id_or_name}"
     user = {"fullname": fullname}
     doit = False
     if global_role == True:
@@ -432,9 +431,9 @@ def unset_user_remote_role(data, role):
     if valid is False:
         return
 
-    fullname = "%s:%s" % (data.server, data.id_or_name)
+    fullname = f"{data.server}:{data.id_or_name}"
     user = {"fullname": fullname, "role": role}
-    data.client.config("user", "%s/role/%s" % (data.id_or_name, role), {"config": user})
+    data.client.config("user", f"{data.id_or_name}/role/{role}", {"config": user})
 
 
 @delete_user.command('remote')
@@ -443,7 +442,7 @@ def unset_user_remote_role(data, role):
 @click.pass_obj
 def delete_user_remote(data, username, server):
     """Delete remote user."""
-    user = "%s:%s" % (server, username)
+    user = f"{server}:{username}"
     data.client.delete("user", user)
 
 
@@ -511,7 +510,9 @@ def create_apikey(data, apikey_name, global_role, expiration_type, expiration_ho
             if r == "":
                 r = "\"\""
             supported_roles.append(r)
-        click.echo("Invalid role. Supported global role: {}".format(', '.join(supported_roles)))
+        click.echo(
+            f"Invalid role. Supported global role: {', '.join(supported_roles)}"
+        )
         click.echo("")
         return
 

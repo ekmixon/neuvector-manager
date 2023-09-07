@@ -34,10 +34,7 @@ def _common_policy_display_format(pol):
 def list_policy_display_format(pol):
     _common_policy_display_format(pol)
     f = "disable"
-    if pol["cfg_type"] == "federal":
-        pol["scope"] = "fed"
-    else:
-        pol["scope"] = "local"
+    pol["scope"] = "fed" if pol["cfg_type"] == "federal" else "local"
     pol["type"] = client.CfgTypeDisplay[pol["cfg_type"]]
     pol["status"] = ""
     if pol.get(f):
@@ -72,12 +69,12 @@ def show_policy_rule(ctx, data, scope, page):
         return
 
     args = {'start': 0, 'limit': page}
-    if scope == 'fed' or scope == 'local':
+    if scope in ['fed', 'local']:
         args["scope"] = scope
 
     while True:
         pols = data.client.list("policy/rule", "rule", **args)
-        if pols == None:
+        if pols is None:
             break
 
         for pol in pols:
@@ -137,12 +134,14 @@ def derived(data, enforcer, container):
     try:
         filter = {}
         if enforcer:
-            obj = utils.get_managed_object(data.client, "enforcer", "enforcer", enforcer)
-            if obj:
+            if obj := utils.get_managed_object(
+                data.client, "enforcer", "enforcer", enforcer
+            ):
                 filter["enforcer"] = obj["id"]
         if container:
-            obj = utils.get_managed_object(data.client, "workload", "workload", container)
-            if obj:
+            if obj := utils.get_managed_object(
+                data.client, "workload", "workload", container
+            ):
                 filter["workload"] = obj["id"]
 
         derived = data.client.list("debug/policy/rule", "workload_rule", **filter)
@@ -178,25 +177,21 @@ def create_policy(data):
 def create_policy_rule(data, from_group, to_group, scope, id, ports, applications, action, disable, after, comment):
     """Create and append policy rule, with unique rule id (< 10000)."""
 
-    args = {}
-    apps = []
-    if applications:
-        apps = applications.split(",")
-
+    apps = applications.split(",") if applications else []
     rule1 = {"id": id, "from": from_group, "to": to_group, "ports": ports, "applications": apps,
              "action": action, "disable": disable, "comment": comment, "cfg_type": client.UserCreatedCfg}
-    args["scope"] = scope
+    args = {"scope": scope}
     if scope == "fed" or _isFedNwRule(id):
         rule1["cfg_type"] = client.FederalCfg
     else:
         rule1["cfg_type"] = client.UserCreatedCfg
     rules = {"rules": [rule1]}
 
-    if after != None:
-        rules["after"] = after
-    else:
+    if after is None:
         if scope == "fed" or _isFedNwRule(id):
             rules["after"] = 0
+    else:
+        rules["after"] = after
     data.client.config("policy", "rule", {"insert": rules}, **args)
 
 
@@ -288,27 +283,21 @@ def _list_response_rule_display_format(rule):
             if conds == "":
                 conds = c["type"] + ":" + c["value"]
             else:
-                conds = conds + ", " + c["type"] + ":" + c["value"]
+                conds = f"{conds}, " + c["type"] + ":" + c["value"]
     rule[f] = conds
 
     f = "actions"
     acts = ""
     if f in rule:
         for a in rule[f]:
-            if acts == "":
-                acts = a
-            else:
-                acts = acts + ", " + a
+            acts = a if acts == "" else f"{acts}, {a}"
     rule[f] = acts
 
     f = "webhooks"
     acts = ""
     if f in rule:
         for a in rule[f]:
-            if acts == "":
-                acts = a
-            else:
-                acts = acts + ", " + a
+            acts = a if acts == "" else f"{acts}, {a}"
     rule[f] = acts
 
 
@@ -316,19 +305,17 @@ def get_response_rules(data, scope, container):
     """Get response rules."""
     rules = {}
     args = {}
-    if scope == 'fed' or scope == 'local':
+    if scope in ['fed', 'local']:
         args["scope"] = scope
 
-    if container != None:
-        obj = utils.get_managed_object(data.client, "workload", "workload", container)
-        if obj == None:
-            click.echo("Cannot find the workload")
-            return
-        rules = data.client.show("response/workload_rules", "rules", obj["id"])
-    else:
-        rules = data.client.show("response/rule", "rules", None, **args)
+    if container is None:
+        return data.client.show("response/rule", "rules", None, **args)
 
-    return rules
+    obj = utils.get_managed_object(data.client, "workload", "workload", container)
+    if obj is None:
+        click.echo("Cannot find the workload")
+        return
+    return data.client.show("response/workload_rules", "rules", obj["id"])
 
 
 @show.group("response")
@@ -349,13 +336,13 @@ def show_response_rule(ctx, data, container, scope):
     if ctx.invoked_subcommand is not None:
         return
 
-    columns = ("id", "group", "event", "conditions", "actions", "webhooks", "disable", "type")
     fedRules = get_response_rules(data, scope, container)
 
     click.echo("")
     if len(fedRules) > 0:
         for rule in fedRules:
             _list_response_rule_display_format(rule)
+        columns = ("id", "group", "event", "conditions", "actions", "webhooks", "disable", "type")
         output.list(columns, fedRules)
 
 
@@ -363,10 +350,7 @@ def _show_response_rule_option_display_format(option):
     for tag in option:
         val = ""
         for item in option[tag]:
-            if val == "":
-                val = item
-            else:
-                val = val + ", " + item
+            val = item if val == "" else f"{val}, {item}"
         option[tag] = val
 
 
@@ -375,24 +359,23 @@ def _show_response_rule_option_display_format(option):
               help="Show federal, local response rule options")
 @click.pass_obj
 def show_response_rule_options(data, scope):
-    args = {}
-    args["scope"] = scope
+    args = {"scope": scope}
     options = data.client.show("response/options", "response_rule_options", None, **args)
     for event in options:
         option = options[event]
         _show_response_rule_option_display_format(option)
-        click.echo("Event %s :" % event)
-        click.echo("  Types: %s" % option["types"])
+        click.echo(f"Event {event} :")
+        click.echo(f'  Types: {option["types"]}')
         if "name" in option:
-            click.echo("  Name options: %s" % option["name"])
+            click.echo(f'  Name options: {option["name"]}')
         if "level" in option:
-            click.echo("  Level options: %s" % option["level"])
+            click.echo(f'  Level options: {option["level"]}')
 
     click.echo("------")
     webhooks = data.client.show("response/options", "webhooks", None, **args)
     click.echo("Webhooks:")
     for wh in webhooks:
-        click.echo("  {}".format(wh))
+        click.echo(f"  {wh}")
 
 
 @create.group("response")
@@ -419,23 +402,24 @@ def create_response(data):
 def create_response_rule(data, scope, group, event, condition, action, webhook, id, after, disable, comment):
     """Create and append response rule, with unique rule id (< 10000).  """
 
-    if event == None:
+    if event is None:
         click.echo("Error: Must provide event for response rule.")
         return
 
-    if action == None or len(action) == 0:
+    if action is None or len(action) == 0:
         click.echo("Error: Must provide action for response rule.")
         return
 
-    rule = {"id": id, "event": event, "actions": action}
+    rule = {
+        "id": id,
+        "event": event,
+        "actions": action,
+        "cfg_type": client.FederalCfg
+        if scope == "fed"
+        else client.UserCreatedCfg,
+    }
 
-    args = {}
-    if scope == "fed":
-        rule["cfg_type"] = client.FederalCfg
-    else:
-        rule["cfg_type"] = client.UserCreatedCfg
-    args["scope"] = scope
-
+    args = {"scope": scope}
     if webhook != None and len(webhook) != 0:
         rule["webhooks"] = webhook
 
@@ -457,7 +441,7 @@ def create_response_rule(data, scope, group, event, condition, action, webhook, 
         r = {"type": d[0], "value": d[1]}
         conds.append(r)
 
-    if len(conds) != 0:
+    if conds:
         rule["conditions"] = conds
 
     rules = {"rules": [rule]}
@@ -612,12 +596,8 @@ def request_policy_rule_promote(data, id):
         click.echo("""Error: Missing option "--id".""")
         return
 
-    ids = []
-    for idString in id:
-        ids.append(int(idString))
-
+    ids = [int(idString) for idString in id]
     req = {"ids": ids}
-    body = dict()
-    body["request"] = req
+    body = {"request": req}
     # click.echo("Policies request object: {}".format(json.dumps(body)))
     data = data.client.request("policy/rules", "promote", None, body)
