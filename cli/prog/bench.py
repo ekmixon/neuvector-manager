@@ -51,7 +51,7 @@ def docker(data, id_or_name):
     if not host:
         return
 
-    report = data.client.show("bench/host", "items", "%s/docker" % host["id"])
+    report = data.client.show("bench/host", "items", f'{host["id"]}/docker')
     columns = ("level", "test_number", "scored", "profile", "description")
     output.list(columns, report)
 
@@ -65,7 +65,7 @@ def kubernetes(data, id_or_name):
     if not host:
         return
 
-    report = data.client.show("bench/host", "items", "%s/kubernetes" % host["id"])
+    report = data.client.show("bench/host", "items", f'{host["id"]}/kubernetes')
     columns = ("level", "test_number", "scored", "profile", "description")
     output.list(columns, report)
 
@@ -80,7 +80,7 @@ def compliance(data, id_or_name):
         return
 
     try:
-        report = data.client.show("host", "items", "%s/compliance" % host["id"])
+        report = data.client.show("host", "items", f'{host["id"]}/compliance')
     except client.ObjectNotFound:
         return
 
@@ -104,7 +104,7 @@ def compliance(data, id_or_name):
         return
 
     try:
-        items = data.client.show("workload", "items", "%s/compliance" % wl["id"])
+        items = data.client.show("workload", "items", f'{wl["id"]}/compliance')
     except client.ObjectNotFound:
         return
 
@@ -144,11 +144,12 @@ def request_bench_host(data):
 @click.pass_obj
 def docker(data, id_or_name):
     """Run node CIS docker benchmark."""
-    host = utils.get_managed_object(data.client, "host", "host", id_or_name)
-    if not host:
+    if host := utils.get_managed_object(
+        data.client, "host", "host", id_or_name
+    ):
+        data.client.request("bench/host", host["id"], "docker", None)
+    else:
         return
-
-    data.client.request("bench/host", host["id"], "docker", None)
 
 
 @request_bench_host.command()
@@ -156,8 +157,9 @@ def docker(data, id_or_name):
 @click.pass_obj
 def kubernetes(data, id_or_name):
     """Run node CIS kubernetes benchmark."""
-    host = utils.get_managed_object(data.client, "host", "host", id_or_name)
-    if not host:
+    if host := utils.get_managed_object(
+        data.client, "host", "host", id_or_name
+    ):
+        data.client.request("bench/host", host["id"], "kubernetes", None)
+    else:
         return
-
-    data.client.request("bench/host", host["id"], "kubernetes", None)

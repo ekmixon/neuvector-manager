@@ -22,7 +22,7 @@ def activity(data, page):
 
     while True:
         logs = data.client.list("log/activity", "event", **filter)
-        if logs == None:
+        if logs is None:
             break
 
         columns = ("reported_at", "name", "level", "category", "host_name", "workload_name", "user")
@@ -48,7 +48,7 @@ def event(data, page):
 
     while True:
         logs = data.client.list("log/event", "event", **filter)
-        if logs == None:
+        if logs is None:
             break
 
         columns = ("reported_at", "name", "level", "category", "host_name", "workload_name", "user")
@@ -69,9 +69,7 @@ def _list_audit_display_format(audit):
     f = "items"
     fo = output.key_output(f)
     if f in audit:
-        s = ""
-        for item in audit[f]:
-            s += "%s\n" % item
+        s = "".join("%s\n" % item for item in audit[f])
         audit[fo] = s.rstrip("\n")
     else:
         audit[fo] = ""
@@ -119,11 +117,11 @@ def threat(ctx, data, page):
 
     while True:
         logs = data.client.list("log/threat", "threat", **filter)
-        if logs == None:
+        if logs is None:
             break
 
+        f = "id"
         for log in logs:
-            f = "id"
             if log.get(f):
                 fo = output.key_output(f)
                 log[fo] = log[f][:output.SHORT_ID_LENGTH]
@@ -235,21 +233,23 @@ def violation(ctx, data, client, server, page):
         return
     filter = {"start": 0, "limit": page}
     if client:
-        obj = utils.get_managed_object(data.client, "workload", "workload", client)
-        if obj:
+        if obj := utils.get_managed_object(
+            data.client, "workload", "workload", client
+        ):
             filter["client_id"] = obj["id"]
         else:
             filter["client_id"] = client
     if server:
-        obj = utils.get_managed_object(data.client, "workload", "workload", server)
-        if obj:
+        if obj := utils.get_managed_object(
+            data.client, "workload", "workload", server
+        ):
             filter["server_id"] = obj["id"]
         else:
             filter["server_id"] = server
 
     while True:
         logs = data.client.list("log/violation", "violation", **filter)
-        if logs == None:
+        if logs is None:
             break
 
         for log in logs:
@@ -305,7 +305,7 @@ def incident(data, page):
 
     while True:
         logs = data.client.list("log/incident", "incident", **filter)
-        if logs == None:
+        if logs is None:
             break
 
         local = "workload_name";

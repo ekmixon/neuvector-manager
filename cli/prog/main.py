@@ -63,26 +63,25 @@ class InteractiveCLI(cmd2.Cmd, object):
     def postparsing_precmd(self, args):
         stop, statement = super(InteractiveCLI, self).postparsing_precmd(args)
         if len(statement.parsed) > 2:
-            if statement.parsed[0] == "set" or statement.parsed[0] == "create":
+            if statement.parsed[0] in ["set", "create"]:
                 if statement.parsed[1].find("admission rule ") >= 0:
                     ops = [">", "<"]
-                    for idx in range(2, len(statement.parsed)):
-                        for op in ops:
-                            if statement.parsed[idx].find(op) >= 0:
-                                raise Exception(invalidArgMsg)
+                    for idx, op in itertools.product(range(2, len(statement.parsed)), ops):
+                        if statement.parsed[idx].find(op) >= 0:
+                            raise Exception(invalidArgMsg)
         return stop, statement
 
     def _set_prompt(self, username, domain, server_ip):
         if not hasattr(sys.stdin, 'isatty') or sys.stdin.isatty():
             if username:
                 if client.RemoteCluster["id"] != "":
-                    server_ip = "joint.{}".format(client.RemoteCluster["id"])
+                    server_ip = f'joint.{client.RemoteCluster["id"]}'
                 if domain:
-                    self.prompt = '%s@%s#%s> ' % (username, domain, server_ip)
+                    self.prompt = f'{username}@{domain}#{server_ip}> '
                 else:
-                    self.prompt = '%s#%s> ' % (username, server_ip)
+                    self.prompt = f'{username}#{server_ip}> '
             else:
-                self.prompt = '#%s> ' % server_ip
+                self.prompt = f'#{server_ip}> '
         else:
             self.prompt = ''
 
@@ -93,7 +92,7 @@ class InteractiveCLI(cmd2.Cmd, object):
                 itertools.takewhile(lambda x: not x.startswith('-'), args)
             )
         )
-        return True if hasattr(self, method_name) else False
+        return bool(hasattr(self, method_name))
 
     def do_help(self, args):
         self.default(args)
@@ -110,26 +109,20 @@ class InteractiveCLI(cmd2.Cmd, object):
                 return "help"
             if self._is_builtin_cmd([args[0]]):
                 # Modify the command to disable builtin commands
-                return "builtin " + line.raw
+                return f"builtin {line.raw}"
 
-        return "cli " + line.raw
+        return f"cli {line.raw}"
 
     def postcmd(self, stop, line):
         self._set_prompt(self.ctx.username, self.ctx.domain, self.ctx.server_ip)
-        if line == "cli exit" or line == "exit":
-            return True
-        return stop
+        return True if line in ["cli exit", "exit"] else stop
 
     def default(self, line):
         args = shlex.split(line)
         # Forward help command with expected format
         if len(args) > 0 and args[0] == "help":
             args[0] = "--help"
-        if len(args) > 0 and args[0] == "builtin":
-            sys.argv[1:] = args[1:]
-        else:
-            sys.argv[1:] = args
-
+        sys.argv[1:] = args[1:] if len(args) > 0 and args[0] == "builtin" else args
         # Capture click' ctx.exit() call so cmd2 can move smoothly
         try:
             cli.cli()
@@ -138,7 +131,7 @@ class InteractiveCLI(cmd2.Cmd, object):
             self.ctx.domain = None
             print("Error: Unauthorized! Login first.")
         except RestException as e:
-            print("Error: %s" % e.msg)
+            print(f"Error: {e.msg}")
         except SystemExit:
             pass
 

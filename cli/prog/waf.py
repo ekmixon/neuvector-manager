@@ -42,10 +42,7 @@ def _list_waf_multival_display_format(rule, f):
     sens = ""
     if f in rule:
         for s in rule[f]:
-            if sens == "":
-                sens = s
-            else:
-                sens = sens + ", " + s
+            sens = s if sens == "" else f"{sens}, {s}"
     rule[f] = sens
 
 
@@ -53,10 +50,7 @@ def _list_waf_multival_group_list_display_format(rule, f):
     sens = ""
     if f in rule:
         for s in rule[f]:
-            if sens == "":
-                sens = s
-            else:
-                sens = sens + ", " + s
+            sens = s if sens == "" else f"{sens}, {s}"
     rule[f] = sens
 
 
@@ -110,7 +104,7 @@ def detail(data, name):
     else:
         _list_waf_multival_display_format(rentry, fdr)
 
-    click.echo("Used by sensor(s): %s" % rentry[fdr])
+    click.echo(f"Used by sensor(s): {rentry[fdr]}")
 
     columns = ("name", "id", "patterns")
     for r in rentry["rules"]:
@@ -133,20 +127,20 @@ def show_waf_sensor(ctx, data, page, sort_dir):
     while True:
         drs = data.client.list("waf/sensor", "sensor", **args)
         for dr in drs:
-            click.echo("Sensor: %s" % (dr["name"]))
+            click.echo(f'Sensor: {dr["name"]}')
 
             gr = "groups"
             if gr not in dr:
                 dr[gr] = ""
             else:
                 _list_waf_multival_group_list_display_format(dr, gr)
-            click.echo("Used by group(s):%s" % (dr[gr]))
+            click.echo(f"Used by group(s):{dr[gr]}")
 
             gr = "comment"
             if gr not in dr:
                 dr[gr] = ""
             click.echo("Comment:\"%s\"" % (dr[gr]))
-            click.echo("Type: %s" % (client.CfgTypeDisplay[dr["cfg_type"]]))
+            click.echo(f'Type: {client.CfgTypeDisplay[dr["cfg_type"]]}')
 
             gr = "predefine"
             if gr not in dr:
@@ -156,15 +150,15 @@ def show_waf_sensor(ctx, data, page, sort_dir):
             else:
                 click.echo("Predefined:False")
 
-            columns = ("name", "patterns")
-
             fdr = "rules"
             if fdr not in dr:
                 dr[fdr] = ""
-                click.echo("%s" % (dr[fdr]))
+                click.echo(f"{dr[fdr]}")
             else:
                 for dre in dr[fdr]:
                     _list_waf_rule_display_format(dre)
+                columns = ("name", "patterns")
+
                 output.list(columns, dr["rules"])
 
         if args["limit"] > 0 and len(drs) < args["limit"]:
@@ -193,13 +187,13 @@ def detail(data, page, sort_dir, name):
         dr[gr] = ""
     else:
         _list_waf_multival_group_list_display_format(dr, gr)
-    click.echo("Used by group(s):%s" % (dr[gr]))
+    click.echo(f"Used by group(s):{dr[gr]}")
 
     gr = "comment"
     if gr not in dr:
         dr[gr] = ""
     click.echo("Comment:\"%s\"" % (dr[gr]))
-    click.echo("Type: %s" % (client.CfgTypeDisplay[dr["cfg_type"]]))
+    click.echo(f'Type: {client.CfgTypeDisplay[dr["cfg_type"]]}')
 
     gr = "predefine"
     if gr not in dr:
@@ -212,7 +206,7 @@ def detail(data, page, sort_dir, name):
     fdr = "rules"
     if fdr not in dr:
         dr[fdr] = ""
-        click.echo("%s" % (dr[fdr]))
+        click.echo(f"{dr[fdr]}")
     else:
         for r in dr["rules"]:
             _list_waf_rule_display_format(r)
@@ -227,26 +221,24 @@ def _add_waf_criterion(key, value, context):
     v = value
     op = CriteriaOpRegex
     ctxt = context
-    # Empty value is not allowed.
-    if len(v) > 1:
-        if v[0] == '~':
-            op = CriteriaOpRegex
-            v = v[1:]
-        elif len(v) > 2 and v[0] == '!' and v[1] == '~':
-            op = CriteriaOpNotRegex
-            v = v[2:]
-        else:
-            return None
-    else:
+    if len(v) <= 1:
         return None
 
+    if v[0] == '~':
+        op = CriteriaOpRegex
+        v = v[1:]
+    elif len(v) > 2 and v[0] == '!' and v[1] == '~':
+        op = CriteriaOpNotRegex
+        v = v[2:]
+    else:
+        return None
     return {"key": k, "value": v, "op": op, "context": ctxt}
 
 
 def _add_waf_criteria(pct, key, value, context):
     e = _add_waf_criterion(key, value, context)
     if not e:
-        click.echo("Error: Invalid input of --%s %s" % (key, value))
+        click.echo(f"Error: Invalid input of --{key} {value}")
         return False
     pct.append(e)
     return True
@@ -283,7 +275,7 @@ def create_waf_sensor_rule(data, name, pattern, context):
     if not _add_waf_criteria(pct, "pattern", pattern, context):
         return
 
-    if len(pct) == 0:
+    if not pct:
         click.echo("Error: Must create waf rule with pattern.")
         return
 
@@ -342,7 +334,7 @@ def set_waf_sensor_rule(data, name, pattern, context):
     if not _add_waf_criteria(pct, "pattern", pattern, context):
         return
 
-    if len(pct) == 0:
+    if not pct:
         click.echo("Error: Must create waf rule with pattern.")
         return
 

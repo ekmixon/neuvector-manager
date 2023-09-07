@@ -10,19 +10,17 @@ from prog import output
 
 def get_user_input(name):
     # Get input from user.
-    click.echo("Enter/Paste {}. An empty line to save it.".format(name))
+    click.echo(f"Enter/Paste {name}. An empty line to save it.")
     lines = []
     while True:
-        line = input()
-        if line:
+        if line := input():
             lines.append(line)
         else:
             break
-    text = '\n'.join(lines)
 #    click.echo("{}={}".format(name, text))
     click.echo("")
 
-    return text
+    return '\n'.join(lines)
 
 
 @show.group('sigstore')
@@ -80,13 +78,13 @@ def show_sigstore_verifier(data, root_name, name):
         click.echo("")
         return
 
-    urlStr = "scan/sigstore/root_of_trust/{}/verifier".format(root_name)
+    urlStr = f"scan/sigstore/root_of_trust/{root_name}/verifier"
     resp = data.client.show(urlStr, None, name)  # show(self, path, obj, obj_id, **kwargs)
     if resp is None:
         return
-        
+
     verifiers = []
-    
+
     if name is None:
         if "verifiers" in resp and resp["verifiers"] is not None:
             for v in resp["verifiers"]:
@@ -202,7 +200,7 @@ def create_sigstore_verifier(data, root_name, name, verifier_type, public_key, c
         "comment": comment
     }
 
-    urlStr = "scan/sigstore/root_of_trust/{}/verifier".format(root_name)
+    urlStr = f"scan/sigstore/root_of_trust/{root_name}/verifier"
     data.client.create(urlStr, info)  # create(self, path, body, **kwargs)
 
 
@@ -281,7 +279,7 @@ def set_sigstore_verifier(data, root_name, name, verifier_type, public_key, cert
     if comment is not None:
         info["comment"] = comment
 
-    urlStr = "scan/sigstore/root_of_trust/{}/verifier".format(root_name)
+    urlStr = f"scan/sigstore/root_of_trust/{root_name}/verifier"
     data.client.config(urlStr, name, info) # config(self, path, obj_id, body, **kwargs):
     
     
@@ -323,5 +321,5 @@ def delete_sigstore_verifier(data, root_name, name):
         click.echo("")
         return
 
-    urlStr = "scan/sigstore/root_of_trust/{}/verifier".format(root_name)
+    urlStr = f"scan/sigstore/root_of_trust/{root_name}/verifier"
     data.client.delete(urlStr, name) # delete(self, path, obj_id, **kwargs)

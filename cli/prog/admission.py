@@ -127,10 +127,9 @@ RiskyRoleDescriptions = {
 def get_admission_rules(data, scope):
     """Get admission control rules."""
     args = {}
-    if scope == 'fed' or scope == 'local':
+    if scope in ['fed', 'local']:
         args["scope"] = scope
-    rules = data.client.show("admission/rules", "rules", None, **args)  # show(self, path, obj, obj_id, **kwargs)
-    return rules
+    return data.client.show("admission/rules", "rules", None, **args)
 
 
 # admission control -----
@@ -147,20 +146,19 @@ def show_admission_state(data):
     state = data.client.show("admission/state", "state", None)
     # click.echo("Admission control state object: {}".format(json.dumps(state)))
     click.echo("")
-    stateDisplay = "disabled"
-    if state["enable"]:
-        stateDisplay = "enabled"
+    stateDisplay = "enabled" if state["enable"] else "disabled"
     if state["cfg_type"] == "ground":
         click.echo("Admission control state: (read-only because it's controlled by CRD rule)")
     else:
         click.echo("Admission control state:")
-    click.echo("  state:          {}".format(stateDisplay))
-    click.echo("  mode:           {}".format(state["mode"]))
-    click.echo("  default action: {}".format(state["default_action"]))
-    click.echo("  client mode:    {} ({})".format(state["adm_client_mode"],
-                                                  state["adm_client_mode_options"][state["adm_client_mode"]]))
+    click.echo(f"  state:          {stateDisplay}")
+    click.echo(f'  mode:           {state["mode"]}')
+    click.echo(f'  default action: {state["default_action"]}')
+    click.echo(
+        f'  client mode:    {state["adm_client_mode"]} ({state["adm_client_mode_options"][state["adm_client_mode"]]})'
+    )
     if "failure_policy" in state:
-        click.echo("  failure policy: {}".format(state["failure_policy"]))
+        click.echo(f'  failure policy: {state["failure_policy"]}')
     click.echo("")
     click.echo("Admission control client mode options:")
     for option in state["adm_client_mode_options"]:
@@ -175,11 +173,11 @@ def show_admission_stats(data):
     stats = data.client.show("debug/admission_stats", "stats", None)
     click.echo(" ")
     click.echo("[Kubernetes]")
-    click.echo("Allowed   requests : {}".format(stats["k8s_allowed_requests"]))
-    click.echo("Denied    requests : {}".format(stats["k8s_denied_requests"]))
-    click.echo("Erroneous requests : {}".format(stats["k8s_erroneous_requests"]))
-    click.echo("Ignored   requests : {}".format(stats["k8s_ignored_requests"]))
-    click.echo("Requests under process : {}".format(stats["k8s_processing_requests"]))
+    click.echo(f'Allowed   requests : {stats["k8s_allowed_requests"]}')
+    click.echo(f'Denied    requests : {stats["k8s_denied_requests"]}')
+    click.echo(f'Erroneous requests : {stats["k8s_erroneous_requests"]}')
+    click.echo(f'Ignored   requests : {stats["k8s_ignored_requests"]}')
+    click.echo(f'Requests under process : {stats["k8s_processing_requests"]}')
     click.echo(" ")
 
 
@@ -191,14 +189,20 @@ def show_admission_stats(data):
 
 def _get_criterion_op_value(c):
     opDisplay = c["op"]
-    if c["op"] == CriteriaOpContainsAll or c["op"] == CriteriaOpContainsAny or c["op"] == CriteriaOpNotContainsAny or c["op"] == CriteriaOpRegexContainsAny or c["op"] == CriteriaOpRegexNotContainsAny or c["op"] == CriteriaOpContainsOtherThan:
+    if c["op"] in [
+        CriteriaOpContainsAll,
+        CriteriaOpContainsAny,
+        CriteriaOpNotContainsAny,
+        CriteriaOpRegexContainsAny,
+        CriteriaOpRegexNotContainsAny,
+        CriteriaOpContainsOtherThan,
+    ]:
         if c["name"] == "user":
             opDisplay = userOpsDisplay[c["op"]]
+        elif SingleValueCrt[c["name"]] is True:
+            opDisplay = OpsDisplay1[c["op"]]
         else:
-            if SingleValueCrt[c["name"]] is True:
-                opDisplay = OpsDisplay1[c["op"]]
-            else:
-                opDisplay = OpsDisplay2[c["op"]]
+            opDisplay = OpsDisplay2[c["op"]]
         value = "{{{}}}".format(c["value"])
     elif c["op"] == "notExist":
         opDisplay = "doesn't exist"
@@ -217,13 +221,9 @@ def _get_criterion_op_value(c):
 def _format_custompath_criteria(c):
     opDisplay, value = _get_criterion_op_value(c)
     if c["value_type"] == "key":
-        msg = "(The value of {} {})".format(c["path"], opDisplay)
-    elif c["value_type"] == "string":
-        msg = "(The value of {} {} {})".format(c["path"], opDisplay, value)
-    elif c["value_type"] == "number":
-        msg = "(The value of {} {} {})".format(c["path"], opDisplay, value)
-    elif c["value_type"] == "boolean":
-        msg = "(The value of {} {} {})".format(c["path"], opDisplay, value)
+        msg = f'(The value of {c["path"]} {opDisplay})'
+    elif c["value_type"] in ["string", "number", "boolean"]:
+        msg = f'(The value of {c["path"]} {opDisplay} {value})'
     return msg
 
 
@@ -243,14 +243,19 @@ def _list_admission_rule_display_format(rule):
                 types[c["name"]].append(c)
             else:
                 types[c["name"]] = [c]
-        for t in types:
-            if len(types[t]) == 0:
+        for t, value_ in types.items():
+            if len(value_) == 0:
                 continue
-            positive = False
-            for c in types[t]:
-                if c["op"] != CriteriaOpNotEqual and c["op"] != CriteriaOpNotRegex and c["op"] != CriteriaOpNotContainsAny and c["op"] != CriteriaOpRegexNotContainsAny:  
-                    positive = True
-                    break
+            positive = any(
+                c["op"]
+                not in [
+                    CriteriaOpNotEqual,
+                    CriteriaOpNotRegex,
+                    CriteriaOpNotContainsAny,
+                    CriteriaOpRegexNotContainsAny,
+                ]
+                for c in types[t]
+            )
             tc = ""
             for c in types[t]:
                 opDisplay, value = _get_criterion_op_value(c)
@@ -258,55 +263,43 @@ def _list_admission_rule_display_format(rule):
                     if "sub_criteria" in c:
                         subCriteria = c["sub_criteria"]
                         if len(subCriteria) == 0:
-                            criterion = "({} {} {})".format(NamesDisplay[c["name"]], opDisplay, value)
-                        else:
-                            if c["name"] == "resourceLimit":
-                                subCritStr = ""
-                                for subCriterion in subCriteria:
-                                    subOpDisplay, subValue = _get_criterion_op_value(subCriterion)
+                            criterion = f'({NamesDisplay[c["name"]]} {opDisplay} {value})'
+                        elif c["name"] == "resourceLimit":
+                            subCritStr = ""
+                            for subCriterion in subCriteria:
+                                subOpDisplay, subValue = _get_criterion_op_value(subCriterion)
                                     # subStr = "({} {} {})".format(NamesDisplay[subCriterion["name"]].format(v1=subValue, v2=subValue))
-                                    str = "({} {} {})".format(NamesDisplay[subCriterion["name"]], subCriterion["op"],
-                                                              subCriterion["value"])
-                                    if subCritStr == "":
-                                        subCritStr = str
-                                    else:
-                                        subCritStr = "{} or {}".format(subCritStr, str)
-                                criterion = "({})".format(NamesDisplay2[c["name"]].format(v1=value, v2=subCritStr))
-                            else:
-                                if len(subCriteria) == 1:
-                                    for subCriterion in subCriteria:
-                                        subOpDisplay, subValue = _get_criterion_op_value(subCriterion)
-                                        criterion = "({})".format(
-                                            NamesDisplay2[c["name"]].format(v1=value, v2=subValue))
-                                        break
-                                else:
-                                    criterion = "(unsupported sub-criteria number: {})".format(len(subCriteria))
+                                str = f'({NamesDisplay[subCriterion["name"]]} {subCriterion["op"]} {subCriterion["value"]})'
+                                subCritStr = str if subCritStr == "" else f"{subCritStr} or {str}"
+                            criterion = "({})".format(NamesDisplay2[c["name"]].format(v1=value, v2=subCritStr))
+                        elif len(subCriteria) == 1:
+                            for subCriterion in subCriteria:
+                                subOpDisplay, subValue = _get_criterion_op_value(subCriterion)
+                                criterion = "({})".format(
+                                    NamesDisplay2[c["name"]].format(v1=value, v2=subValue))
+                                break
+                        else:
+                            criterion = f"(unsupported sub-criteria number: {len(subCriteria)})"
                     elif c["name"] in NamesDisplay:
-                        criterion = "({} {} {})".format(NamesDisplay[c["name"]], opDisplay, value)
+                        criterion = f'({NamesDisplay[c["name"]]} {opDisplay} {value})'
                     else:
-                        criterion = "(unsupported {})".format(c["name"])
+                        criterion = f'(unsupported {c["name"]})'
                 elif c["name"] in NamesDisplay:
-                    criterion = "({} {} {})".format(NamesDisplay[c["name"]], opDisplay, value)
+                    criterion = f'({NamesDisplay[c["name"]]} {opDisplay} {value})'
                 elif c["name"] == "customPath" or ("type" in c and c["type"] == "customPath"):
                     criterion = _format_custompath_criteria(c)
                 elif c["name"] == "saBindRiskyRole":
-                    criterion = "({} in {})".format(SaBindRiskyRoleDisplay[c["name"]], value)
+                    criterion = f'({SaBindRiskyRoleDisplay[c["name"]]} in {value})'
                 else:
-                    criterion = "(unsupported {})".format(c["name"])
+                    criterion = f'(unsupported {c["name"]})'
                 if tc == "":
                     tc = criterion
                 else:
-                    if positive:
-                        tc = "{} or {}".format(tc, criterion)
-                    else:
-                        tc = "{} and {}".format(tc, criterion)
+                    tc = f"{tc} or {criterion}" if positive else f"{tc} and {criterion}"
             if len(types[t]) > 1:
-                tc = "({})".format(tc)
+                tc = f"({tc})"
 
-            if criteria == "":
-                criteria = tc
-            else:
-                criteria = "{} and {}".format(criteria, tc)
+            criteria = tc if criteria == "" else f"{criteria} and {tc}"
     rule["criteria"] = criteria
 
 
@@ -323,10 +316,9 @@ def show_admission_rule(ctx, data, id, scope):
         click.echo("""Error: Missing option "--id".""")
         return
 
-    rules = []
     rule = data.client.show("admission/rule", "rule", id)  # show(self, path, obj, obj_id)
     _list_admission_rule_display_format(rule)
-    rules.append(rule)
+    rules = [rule]
     click.echo(" ")
     # columns = ("id", "category", "criteria", "disable", "comment", "type")
     columns = ("id", "criteria", "disable", "rule_mode", "comment", "action", "type")
@@ -355,16 +347,14 @@ def show_admission_rules(ctx, data, scope):
 
 
 def _get_criterion_option(option):
-    ops = []
-    for o in option["ops"]:
-        ops.append(o)
-    option["ops"] = "{}".format(", ".join(ops))
+    ops = list(option["ops"])
+    option["ops"] = f'{", ".join(ops)}'
 
     if option["name"] == "customPath":
         option["ops"] = "(Please see following table customPath for details)"
 
     if "values" in option:
-        option["values"] = "{}".format(", ".join(option["values"]))
+        option["values"] = f'{", ".join(option["values"])}'
     else:
         option["values"] = ""
 
@@ -375,7 +365,7 @@ def _get_criterion_option(option):
 def _list_admission_rule_options(data, ruleType, category, ruleOptionsObj):
     click.echo(" ")
     # click.echo("Rule options for {} {} rules:".format(category, ruleType))
-    click.echo("Rule options for {} rules:".format(AdmCtrlRuleTypeDisplay[ruleType]))
+    click.echo(f"Rule options for {AdmCtrlRuleTypeDisplay[ruleType]} rules:")
     ruleOptionsDisplay = []
     ruleOptions = ruleOptionsObj["rule_options"]
     for name in ruleOptions:
@@ -388,13 +378,10 @@ def _list_admission_rule_options(data, ruleType, category, ruleOptionsObj):
                 subOption = subOptions[name]
                 _get_criterion_option(subOption)
                 if subOption["values"] == "":
-                    str = "{}  {}".format(subOption["name"], subOption["ops"])
+                    str = f'{subOption["name"]}  {subOption["ops"]}'
                 else:
-                    str = "{} {}  {}".format(subOption["name"], subOption["ops"], subOption["values"])
-                if subOptionsStr == "":
-                    subOptionsStr = str
-                else:
-                    subOptionsStr = "{}\n{}".format(subOptionsStr, str)
+                    str = f'{subOption["name"]} {subOption["ops"]}  {subOption["values"]}'
+                subOptionsStr = str if subOptionsStr == "" else f"{subOptionsStr}\n{str}"
             option["sub-options"] = subOptionsStr
         else:
             option["sub-options"] = ""
@@ -428,10 +415,11 @@ def _list_admission_pss_collections(data, pss_collections):
 def _list_predefined_risky_roles(data, criteria):
     click.echo(" ")
     click.echo("Content for predefined high risk roles:")
-    mainCrit=[]
-    for role in criteria:
-        if role in RiskyRoleDescriptions:
-            mainCrit.append({"value": role, "description": RiskyRoleDescriptions[role]})
+    mainCrit = [
+        {"value": role, "description": RiskyRoleDescriptions[role]}
+        for role in criteria
+        if role in RiskyRoleDescriptions
+    ]
     columns = ("value","description")
     output.list(columns, mainCrit)
 
@@ -449,14 +437,9 @@ def _list_custompath_options(data, criteria):
     click.echo(" ")
     click.echo("Content for customPath options:")
     for cr in criteria:
-        if "values" in cr:
-            cr["values"] = "{}".format(", ".join(cr["values"]))
-        else:
-            cr["values"] = ""
-        ops = []
-        for o in cr["ops"]:
-            ops.append(o)
-        cr["ops"] = "{}".format(", ".join(ops))
+        cr["values"] = f'{", ".join(cr["values"])}' if "values" in cr else ""
+        ops = list(cr["ops"])
+        cr["ops"] = f'{", ".join(ops)}'
         cr["value type"] = cr["valuetype"]
     columns = ("value type", "ops", "values")
     output.list(columns, criteria)
@@ -504,8 +487,7 @@ def _parse_adm_criterion(c):
         return
     elif len(d) > 3:
         d[2] = ":".join(d[2:])
-    crit = {"name": d[0], "op": d[1], "value": d[2]}
-    return crit
+    return {"name": d[0], "op": d[1], "value": d[2]}
 
 def _parse_adm_custompath_criterion(c):
     # expected format for custompath
@@ -514,8 +496,15 @@ def _parse_adm_custompath_criterion(c):
     if len(d) < 5:
         click.echo("Error: Must provide criterion name, op, value, path and value_type")
         return
-    crit = {"name": d[0], "op": d[1], "value": d[2], "path": d[3], "value_type": d[4], "template_kind": "podTemplate", "type": d[0]}
-    return crit
+    return {
+        "name": d[0],
+        "op": d[1],
+        "value": d[2],
+        "path": d[3],
+        "value_type": d[4],
+        "template_kind": "podTemplate",
+        "type": d[0],
+    }
 
 def _parse_adm_sabindriskyrole_criterion(c):
     # expected format for sabindriskyrole
@@ -526,8 +515,7 @@ def _parse_adm_sabindriskyrole_criterion(c):
         return
     elif len(d) > 3:
         d[2] = ":".join(d[2:])
-    crit = {"name": d[0], "op": d[1], "value": d[2]}
-    return crit
+    return {"name": d[0], "op": d[1], "value": d[2]}
 
 
 def _parse_adm_criteria(criteria):
@@ -539,11 +527,16 @@ def _parse_adm_criteria(criteria):
         if len(c0) > 0 and c0[0] == "resourceLimit":
             c3 = [c0[0]]
         elif len(c3) < 3:
-            msg = "Error: Incorrect criteria option: {}".format(c)
+            msg = f"Error: Incorrect criteria option: {c}"
             click.echo(msg)
             return False, None
         crtName = c3[0]
-        if crtName == "cveHighCount" or crtName == "cveMediumCount" or crtName == "cveHighWithFixCount" or crtName == "cveScoreCount":
+        if crtName in [
+            "cveHighCount",
+            "cveMediumCount",
+            "cveHighWithFixCount",
+            "cveScoreCount",
+        ]:
             c2 = c.split("/")
             if len(c2) == 0:
                 click.echo("""Error: Invalid option value "--criteria".""")
@@ -557,7 +550,6 @@ def _parse_adm_criteria(criteria):
                 mainCrit["sub_criteria"] = subCrits
             else:  # meaning there is no sub-criteria
                 mainCrit = _parse_adm_criterion(c)
-            crits.append(mainCrit)
         elif crtName == "resourceLimit":
             c2 = c.split("/")
             if len(c2) == 0:
@@ -569,19 +561,16 @@ def _parse_adm_criteria(criteria):
                     subCrit = _parse_adm_criterion(c)
                     subCrits.append(subCrit)
                 mainCrit = {"name": "resourceLimit", "sub_criteria": subCrits}
-            crits.append(mainCrit)
         elif crtName == "customPath":
             mainCrit = _parse_adm_custompath_criterion(c)
             mainCrit["sub_criteria"] = None
-            crits.append(mainCrit)
         elif crtName == "saBindRiskyRole":
             mainCrit = _parse_adm_sabindriskyrole_criterion(c)
             mainCrit["sub_criteria"] = None
-            crits.append(mainCrit)
         else:
             mainCrit = _parse_adm_criterion(c)
             mainCrit["sub_criteria"] = None
-            crits.append(mainCrit)
+        crits.append(mainCrit)
     return True, crits
 
 
@@ -589,7 +578,6 @@ def _parse_adm_criteria(criteria):
 @click.option("--type", default="deny", type=click.Choice(['deny', 'allow']), show_default=True, help="Rule type")
 @click.option("--scope", default="local", type=click.Choice(['fed', 'local']), show_default=True,
               help="It's a local or federal rule")
-# @click.option("--category", default="Kubernetes", help="rule category. default: Kubernetes")
 @click.option("--criteria", multiple=True,
               help="Format is name:op:value{/subName:op:value}. name can be annotations, allowPrivEscalation, count, cpuLimit, cpuRequest, cveHighCount, cveHighWithFixCount, cveMediumCount, cveNames, cveScoreCount, envVarSecrets, image, imageCompliance, imageNoOS, imageScanned, imageSigned, imageVerifiers, labels, memoryLimit, memoryRequest, modules, mountVolumes, namespace, pspCompliance, resourceLimit. subName can be publishDays, runAsRoot, shareIpcWithHost, shareNetWithHost, sharePidWithHost, user, userGroups, violatePssPolicy. Format for criteira named customPath is name:op:path:valuetype:value. Format for criteria named saBindRiskyRole is name:op:value. See command: show admission rule options")
 @click.option("--disable/--enable", default=False, help="Disable/enable the admission control rule [default: --enable]")
@@ -623,8 +611,7 @@ def create_admission_rule(data, type, scope, criteria, disable, mode, comment):
     rule["id"] = 0
     if type == 'deny':
         rule["rule_mode"] = mode
-    body = dict()
-    body["config"] = rule
+    body = {"config": rule}
     # click.echo("Admission control rule object: {}".format(json.dumps(body)))
     ret = data.client.create("admission/rule", body)
     if not ret:
@@ -641,7 +628,6 @@ def set_admission(data):
 @set_admission.command("state")
 @click.option("--disable/--enable", default=None, required=False, help="Disable/enable admission control")
 @click.option("--mode", required=False, type=click.Choice(['monitor', 'protect']), help="Admission control mode")
-# @click.option("--default_action", required=False, type=click.Choice(['allow', 'deny']), help="Default action for the request if no rule matches")
 @click.option("--client_mode", required=False,
               help="The client mode that Kube-apiserver uses when sending requests to Neuvector admission control webhook server")
 @click.pass_obj
@@ -673,8 +659,7 @@ def set_admission_state(data, disable, mode, client_mode):
     if client_mode_selection is not None:
         current["adm_client_mode"] = client_mode_selection
 
-    body = dict()
-    body["state"] = current
+    body = {"state": current}
     ret = data.client.config("admission", "state", body)  # config(self, path, obj_id, body, **kwargs)
     if not ret:
         return
@@ -683,7 +668,6 @@ def set_admission_state(data, disable, mode, client_mode):
 @set_admission.command("rule")
 @click.option("--id", type=int, required=True, help="Rule id")
 @click.option("--scope", default="local", type=click.Choice(['fed', 'local']), show_default=True, help="Obsolete")
-# @click.option("--category", default="Kubernetes", show_default=True, help="Rule category")
 @click.option("--criteria", multiple=True,
               help="Format is name:op:value{/subName:op:value}. name can be annotations, allowPrivEscalation, count, cpuLimit, cpuRequest, cveHighCount, cveHighWithFixCount, cveMediumCount, cveNames, cveScoreCount, envVarSecrets, image, imageCompliance, imageNoOS, imageScanned, imageSigned, imageVerifiers, labels, memoryLimit, memoryRequest, modules, mountVolumes, namespace, pspCompliance, resourceLimit. subName can be publishDays, runAsRoot, shareIpcWithHost, shareNetWithHost, sharePidWithHost, user, userGroups, violatePssPolicy. Format for criteira named customPath is name:op:path:valuetype:value. Format for criteria named saBindRiskyRole is name:op:value. See command: show admission rule options")
 @click.option("--enable", "state", flag_value='enable', help="Enable the admission control rule")
@@ -693,22 +677,13 @@ def set_admission_state(data, disable, mode, client_mode):
 @click.pass_obj
 def set_admission_rule(data, id, scope, criteria, state, mode, comment):
     category = None  # Do not allow category yet
-    disable = False
     """Configure admission control deny rule.\n
        Notice: \n
        For criteria/comment options, you need to use double quote character around the option value, like --criteria \"cveHighCount:>=:2/publishDays:>=:30\" or --criteria \"cveScoreCount:>=:7/count:>=:5\" """
-    if state == "disable":
-        disable = True
-
-    rule = None
-    scope = "local"
-    if id > 100000 and id < 110000:
-        scope = "fed"
+    disable = state == "disable"
+    scope = "fed" if id > 100000 and id < 110000 else "local"
     rules = get_admission_rules(data, scope)
-    for rule_ in rules:
-        if int(rule_["id"]) == int(id):
-            rule = rule_
-            break
+    rule = next((rule_ for rule_ in rules if int(rule_["id"]) == int(id)), None)
     if rule is None:
         click.echo("Error: Rule not found")
         return
@@ -751,10 +726,9 @@ def set_admission_rule(data, id, scope, criteria, state, mode, comment):
             return
 
     if modify:
-        body = dict()
-        body["config"] = rule
-        ret = data.client.config("admission", "rule", body)
         if scope == "fed":
+            body = {"config": rule}
+            ret = data.client.config("admission", "rule", body)
             click.echo("A federal-level admission control deny rule has been configured.")
 
 
@@ -778,17 +752,18 @@ def delete_admission_rule(data, id, scope):
         if scope == "fed":
             click.echo("A federal-level admission control rule has been deleted.")
     else:
-        deleteRules = False
-        if scope == "fed":
-            if click.confirm(
-                    'All federal-level admission control deny rules will be deleted. Do you want to continue?'):
-                deleteRules = True
-        else:
-            if click.confirm(
-                    'All local non-default admission control rules(except default rules) will be deleted. Do you want to continue?'):
-                deleteRules = True
+        deleteRules = bool(
+            scope == "fed"
+            and click.confirm(
+                'All federal-level admission control deny rules will be deleted. Do you want to continue?'
+            )
+            or scope != "fed"
+            and click.confirm(
+                'All local non-default admission control rules(except default rules) will be deleted. Do you want to continue?'
+            )
+        )
         if deleteRules:
-            if scope == 'fed' or scope == 'local':
+            if scope in ['fed', 'local']:
                 args["scope"] = scope
             data.client.delete("admission/rules", None, **args)
 
@@ -826,12 +801,8 @@ def request_admission_rule_promote(data, id):
         click.echo("""Error: Missing option "--id".""")
         return
 
-    ids = []
-    for idString in id:
-        ids.append(int(idString))
-
+    ids = [int(idString) for idString in id]
     req = {"ids": ids}
-    body = dict()
-    body["request"] = req
+    body = {"request": req}
     # click.echo("Admission control request object: {}".format(json.dumps(body)))
     data = data.client.request("admission/rule", "promote", None, body)

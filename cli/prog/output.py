@@ -7,7 +7,7 @@ SHORT_ID_LENGTH = 12
 
 
 def key_output(f):
-    return f + "_output"
+    return f"{f}_output"
 
 
 def swap_origin(obj, f):
@@ -128,7 +128,9 @@ def hexdump(src, length=16, sep='.'):
         chars = src[c:c + length]
         hex = ' '.join(["%02x" % ord(x) for x in chars])
         if len(hex) > 24:
-            hex = "%s %s" % (hex[:24], hex[24:])
-        printable = ''.join(["%s" % ((ord(x) <= 127 and FILTER[ord(x)]) or sep) for x in chars])
+            hex = f"{hex[:24]} {hex[24:]}"
+        printable = ''.join(
+            [f"{ord(x) <= 127 and FILTER[ord(x)] or sep}" for x in chars]
+        )
         lines.append("%08x:  %-*s    %s\n" % (c, length * 3, hex, printable))
     click.echo(''.join(lines))

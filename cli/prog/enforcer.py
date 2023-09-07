@@ -34,7 +34,7 @@ def enforcer(ctx, data, sort, sort_dir):
     for enforcer in enforcers:
         _list_display_format(enforcer, "id")
 
-    click.echo("Total enforcers: %s" % len(enforcers))
+    click.echo(f"Total enforcers: {len(enforcers)}")
     columns = ("id", "name", "host_name", "version", "joined_at", "cluster_ip", "connection_state", "disconnected_at")
     output.list(columns, enforcers)
 
@@ -67,29 +67,26 @@ def stats(data, id_or_name):
         return
 
     try:
-        stats = data.client.show("enforcer", "stats", "%s/stats" % enforcer["id"])
+        stats = data.client.show("enforcer", "stats", f'{enforcer["id"]}/stats')
     except client.ObjectNotFound:
         return
-
-    display = []
 
     span = 0
     stats["total"]["duration"] = "Total"
     utils.stats_display_format(stats["total"], span)
-    display.append(stats["total"])
-
+    display = [stats["total"]]
     span = stats["interval"]
-    stats["span_1"]["duration"] = "Last %ss" % span
+    stats["span_1"]["duration"] = f"Last {span}s"
     utils.stats_display_format(stats["span_1"], span)
     display.append(stats["span_1"])
 
     span = stats["interval"] * 12
-    stats["span_12"]["duration"] = "Last %ss" % span
+    stats["span_12"]["duration"] = f"Last {span}s"
     utils.stats_display_format(stats["span_12"], span)
     display.append(stats["span_12"])
 
     span = stats["interval"] * 60
-    stats["span_60"]["duration"] = "Last %ss" % span
+    stats["span_60"]["duration"] = f"Last {span}s"
     utils.stats_display_format(stats["span_60"], span)
     display.append(stats["span_60"])
 
@@ -115,7 +112,7 @@ def counter(data, id_or_name):
         return
 
     try:
-        counter = data.client.show("enforcer", "counter", "%s/counter" % enforcer["id"])
+        counter = data.client.show("enforcer", "counter", f'{enforcer["id"]}/counter')
     except client.ObjectNotFound:
         return
 
@@ -180,17 +177,13 @@ def setting(data, id_or_name):
         return
 
     try:
-        conf = data.client.show("enforcer", "config", "%s/config" % enforcer["id"])
+        conf = data.client.show("enforcer", "config", f'{enforcer["id"]}/config')
     except client.ObjectNotFound:
         return
 
     f = "debug"
     fo = output.key_output(f)
-    if f in conf and conf[f]:
-        conf[fo] = ", ".join(conf[f])
-    else:
-        conf[fo] = ""
-
+    conf[fo] = ", ".join(conf[f]) if f in conf and conf[f] else ""
     columns = ("debug",)
     output.show(columns, conf)
 
@@ -205,7 +198,9 @@ def probe_summary(data, id_or_name):
         return
 
     try:
-        info = data.client.show("enforcer", "summary", "%s/probe_summary" % enforcer["id"])
+        info = data.client.show(
+            "enforcer", "summary", f'{enforcer["id"]}/probe_summary'
+        )
     except client.ObjectNotFound:
         return
 
@@ -224,7 +219,9 @@ def probe_process(data, id_or_name):
         return
 
     try:
-        procs = data.client.show("enforcer", "processes", "%s/probe_processes" % enforcer["id"])
+        procs = data.client.show(
+            "enforcer", "processes", f'{enforcer["id"]}/probe_processes'
+        )
     except client.ObjectNotFound:
         return
 
@@ -245,7 +242,9 @@ def probe_container(data, id_or_name):
         return
 
     try:
-        containers = data.client.show("enforcer", "containers", "%s/probe_containers" % enforcer["id"])
+        containers = data.client.show(
+            "enforcer", "containers", f'{enforcer["id"]}/probe_containers'
+        )
     except client.ObjectNotFound:
         return
 
@@ -283,21 +282,30 @@ def debug(data, category):
     if not enforcer:
         return
 
-    conf = {}
-
     s = set()
     for c in category:
         if c == 'all':
-            s |= set(['error', 'cpath', 'conn', 'packet', 'ctrl', 'session', 'timer', 'tcp', 'parser', 'log', 'ddos',
-                      'cluster', 'policy', 'dlp', 'monitor'])
+            s |= {
+                'error',
+                'cpath',
+                'conn',
+                'packet',
+                'ctrl',
+                'session',
+                'timer',
+                'tcp',
+                'parser',
+                'log',
+                'ddos',
+                'cluster',
+                'policy',
+                'dlp',
+                'monitor',
+            }
         else:
             s.add(c)
-    # Can't use list(s) because we overwrite list with our own function
-    l = []
-    for c in s:
-        l.append(c)
-    conf["debug"] = l
-
+    l = list(s)
+    conf = {"debug": l}
     data.client.config("enforcer", enforcer["id"], {"config": conf})
 
 
@@ -310,14 +318,13 @@ def set_enforcer_protect(data, disable):
     if not enforcer:
         return
 
-    conf = {}
-    conf["disable_nvprotect"] = False
+    conf = {"disable_nvprotect": False}
     state = "enabled"
     if disable == 'true':
         conf["disable_nvprotect"] = True
         state = "disabled"
 
-    click.echo("Set [%s] Protect mode .... : %s" % (enforcer["id"], state))
+    click.echo(f'Set [{enforcer["id"]}] Protect mode .... : {state}')
     data.client.config("enforcer", enforcer["id"], {"config": conf})
 
 
@@ -330,14 +337,13 @@ def set_enforcer_kvcctl(data, disable):
     if not enforcer:
         return
 
-    conf = {}
-    conf["disable_kvcctl"] = False
+    conf = {"disable_kvcctl": False}
     state = "enabled"
     if disable == 'true':
         conf["disable_kvcctl"] = True
         state = "disabled"
 
-    click.echo("Set [%s] kv congestion control .... : %s" % (enforcer["id"], state))
+    click.echo(f'Set [{enforcer["id"]}] kv congestion control .... : {state}')
     data.client.config("enforcer", enforcer["id"], {"config": conf})
 
 
@@ -366,16 +372,15 @@ def request_enforcer_profile(data, category, duration):
     s = set()
     for c in category:
         if c == 'all':
-            s |= set(['cpu', 'memory'])
+            s |= {'cpu', 'memory'}
         else:
             s.add(c)
-    # Can't use list(s) because we overwrite list with our own function
-    l = []
-    for c in s:
-        l.append(c)
+    l = list(s)
     prof["methods"] = l
 
-    data.client.request("enforcer", "%s/profiling" % enforcer["id"], None, {"profiling": prof})
+    data.client.request(
+        "enforcer", f'{enforcer["id"]}/profiling', None, {"profiling": prof}
+    )
 
 
 @request_enforcer.command('logs')
@@ -385,29 +390,22 @@ def request_enforcer_profile(data, category, duration):
 @click.pass_obj
 def request_enforcer_logs(data, filename, dir, size):
     """Request enforcer logs"""
-    filter = {}
-
-    enf = utils.get_managed_object(data.client, "enforcer", "enforcer", data.id_or_name)
-    if enf:
-        path = "enforcer/%s/logs" % enf["id"]
-        device_id = enf["id"]
-    else:
+    if not (
+        enf := utils.get_managed_object(
+            data.client, "enforcer", "enforcer", data.id_or_name
+        )
+    ):
         return
 
-    if dir == 'start':
-        filter["start"] = 0
-    else:
-        filter["start"] = -1
+    path = f'enforcer/{enf["id"]}/logs'
+    device_id = enf["id"]
+    filter = {"start": 0 if dir == 'start' else -1}
     if size:
         filter["limit"] = size * 1024 * 1024
 
     headers, body = data.client.download(path, **filter)
 
-    if filename:
-        filepath = filename
-    else:
-        filepath = device_id + ".log"
-
+    filepath = filename if filename else f"{device_id}.log"
     with click.open_file(filepath, 'w') as wfp:
-        click.echo("Save logs to: %s" % filepath)
+        click.echo(f"Save logs to: {filepath}")
         wfp.write(body.content)

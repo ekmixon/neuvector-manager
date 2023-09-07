@@ -59,7 +59,7 @@ def request_federation_promote(data, name, server, port, use_proxy):
         master_rest_info["port"] = int(port)
 
     req = {"master_rest_info": master_rest_info}
-    if name != None and name != "":
+    if name not in [None, ""]:
         req["name"] = name
 
     if "use_proxy" in resp:
@@ -104,17 +104,16 @@ def request_federation_deomote(data):
 @click.pass_obj
 def request_federation_join_token(data, duration):
     """Get a join-token from primary cluster in the federation."""
-    args = {}
     df = float(duration)
     if df <= 0:
         df = 1
     df = df * 60
     dn = int(df)
-    args["token_duration"] = dn
+    args = {"token_duration": dn}
     resp = data.client.show("fed/join_token", "join_token", None, **args)
     # click.echo("Federation join_token response object: {}".format(json.dumps(resp)))
     click.echo("")
-    click.echo("join_token: {}".format(resp))
+    click.echo(f"join_token: {resp}")
     click.echo("")
 
 
@@ -135,7 +134,7 @@ def request_federation_join(data, name, server, port, local_server, local_port, 
 
     resp = data.client.show("fed/member", None, None)
     joint_rest_info = resp["local_rest_info"]
-    if local_server != None and local_server != "":
+    if local_server not in [None, ""]:
         joint_rest_info["server"] = local_server
     if local_port != None and int(local_port) != 0:
         joint_rest_info["port"] = int(local_port)
@@ -146,16 +145,18 @@ def request_federation_join(data, name, server, port, local_server, local_port, 
     req = {"join_token": token, "joint_rest_info": joint_rest_info, "use_proxy": use_proxy}
 
     prompt = False
-    if server == None or server == "":
+    if server is None or server == "":
         req["server"] = joinToken["s"]
         prompt = True
-    if port == None or port == 0:
+    if port is None or port == 0:
         req["port"] = int(joinToken["p"])
         prompt = True
     if prompt:
         click.echo("")
-        click.echo("It will join the federation with primary cluster {}:{}".format(req["server"], req["port"]))
-    if name != None and name != "":
+        click.echo(
+            f'It will join the federation with primary cluster {req["server"]}:{req["port"]}'
+        )
+    if name not in [None, ""]:
         req["name"] = name
     # click.echo("Joining federation request object: {}".format(json.dumps(req)))
     resp = data.client.request("fed", "join", None, req)
@@ -171,10 +172,7 @@ def request_federation_join(data, name, server, port, local_server, local_port, 
 @click.pass_obj
 def request_federation_leave(data, force):
     """Leave the federation."""
-    if force == "true":
-        forceLeave = True
-    else:
-        forceLeave = False
+    forceLeave = force == "true"
     req = {"force": forceLeave}
     data.client.request("fed", "leave", None, req)
     click.echo("")
@@ -189,7 +187,9 @@ def request_federation_remove(data, id):
     """Remove a managed cluster out of the federation."""
     data.client.delete("fed/cluster", id)
     click.echo("")
-    click.echo("The managed cluster {} has been removed out of the federation successfully".format(id))
+    click.echo(
+        f"The managed cluster {id} has been removed out of the federation successfully"
+    )
     click.echo("")
 
 
@@ -212,7 +212,7 @@ def request_federation_deploy(data, id, force):
     click.echo("          managed cluster id       |  result                                           ")
     click.echo("---------------------------------------------------------------------------------------")
     for id in results:
-        click.echo(" {}     {}".format(id, deployResultDisplay[int(results[id])]))
+        click.echo(f" {id}     {deployResultDisplay[int(results[id])]}")
     click.echo("")
 
 
@@ -231,29 +231,28 @@ def show_federation_member(data):
     # click.echo("Federation organization object: {}".format(json.dumps(resp)))
     click.echo("")
     if resp is None or (resp["fed_role"] == clusterRoleNone):
-        useProxy = False
-        if "use_proxy" in resp:
-            useProxy = resp["use_proxy"]
+        useProxy = resp["use_proxy"] if "use_proxy" in resp else False
         click.echo("Not in federation")
         click.echo("--------------------------------------------")
         click.echo("Local cluster rest info:")
-        click.echo("  REST server/port:        {}:{}".format(resp["local_rest_info"]["server"],
-                                                             resp["local_rest_info"]["port"]))
+        click.echo(
+            f'  REST server/port:        {resp["local_rest_info"]["server"]}:{resp["local_rest_info"]["port"]}'
+        )
         click.echo("")
-        click.echo("Use proxy for inter-cluster communications: {}".format(useProxy))
+        click.echo(f"Use proxy for inter-cluster communications: {useProxy}")
         click.echo("")
     else:
-        click.echo("Role of this cluster in the federation: {}".format(resp["fed_role"]))
+        click.echo(f'Role of this cluster in the federation: {resp["fed_role"]}')
         click.echo("")
         clusters = []
         proxyRequiredTitle = "proxy required for connection"
         columns = ("role", "id", "name", "rest server/port", "status", "use proxy", "proxy required for connection")
-        master = {}
-        master["role"] = "primary"
-        master["id"] = resp["master_cluster"]["id"]
-        master["name"] = resp["master_cluster"]["name"]
-        master["rest server/port"] = "{}:{}".format(resp["master_cluster"]["rest_info"]["server"],
-                                                    resp["master_cluster"]["rest_info"]["port"])
+        master = {
+            "role": "primary",
+            "id": resp["master_cluster"]["id"],
+            "name": resp["master_cluster"]["name"],
+            "rest server/port": f'{resp["master_cluster"]["rest_info"]["server"]}:{resp["master_cluster"]["rest_info"]["port"]}',
+        }
         if resp["fed_role"] == clusterRoleMaster:
             master["status"] = "self"
             master["use proxy"] = False
@@ -265,8 +264,9 @@ def show_federation_member(data):
                 joint_clusters = resp["joint_clusters"]
                 for cluster in joint_clusters:
                     cluster["role"] = "managed"
-                    cluster["rest server/port"] = "{}:{}".format(cluster["rest_info"]["server"],
-                                                                 cluster["rest_info"]["port"])
+                    cluster[
+                        "rest server/port"
+                    ] = f'{cluster["rest_info"]["server"]}:{cluster["rest_info"]["port"]}'
                     cluster["use proxy"] = ""
                     cluster[proxyRequiredTitle] = ""
                     if "proxy_required" in cluster:
@@ -279,15 +279,15 @@ def show_federation_member(data):
             clusters.append(master)
             if len(resp["joint_clusters"]) > 0:
                 joint_cluster = resp["joint_clusters"][0]
-                joint = {}
-                joint["role"] = "managed"
-                joint["id"] = joint_cluster["id"]
-                joint["name"] = joint_cluster["name"]
-                joint["rest server/port"] = "{}:{}".format(joint_cluster["rest_info"]["server"],
-                                                           joint_cluster["rest_info"]["port"])
-                joint["status"] = joint_cluster["status"]
-                joint[proxyRequiredTitle] = ""
-                joint["use proxy"] = False
+                joint = {
+                    "role": "managed",
+                    "id": joint_cluster["id"],
+                    "name": joint_cluster["name"],
+                    "rest server/port": f'{joint_cluster["rest_info"]["server"]}:{joint_cluster["rest_info"]["port"]}',
+                    "status": joint_cluster["status"],
+                    proxyRequiredTitle: "",
+                    "use proxy": False,
+                }
                 if "use_proxy" in resp:
                     joint["use proxy"] = resp["use_proxy"]
                 clusters.append(joint)
@@ -304,12 +304,11 @@ def show_federation_config(data):
     if resp is None or (resp["fed_role"] != clusterRoleMaster):
         click.echo("")
     else:
-        click.echo("Role of this cluster in the federation: {}".format(resp["fed_role"]))
+        click.echo(f'Role of this cluster in the federation: {resp["fed_role"]}')
         click.echo("")
         clusters = []
-        cfg = {}
         deploy_repo_scan_data_title = "deploy repository scan data"
-        cfg["use proxy"] = False
+        cfg = {"use proxy": False}
         if "use_proxy" in resp:
             cfg["use proxy"] = resp["use_proxy"]
         cfg[deploy_repo_scan_data_title] = False
@@ -326,7 +325,7 @@ def show_federation_remote(data):
     if client.RemoteCluster["id"] == "":
         click.echo("Working on local cluster")
     else:
-        click.echo("Working on remote cluster - id: {})".format(client.RemoteCluster["id"]))
+        click.echo(f'Working on remote cluster - id: {client.RemoteCluster["id"]})')
 
 
 #####
@@ -355,9 +354,8 @@ def set_federation_config(data, name, server, port, use_proxy, deploy_repo_scan_
         rest_info["server"] = server
     if port is not None:
         rest_info["port"] = int(port)
-    body = {"rest_info": rest_info}
-    body["use_proxy"] = use_proxy
-    if name != None and name != "":
+    body = {"rest_info": rest_info, "use_proxy": use_proxy}
+    if name not in [None, ""]:
         body["name"] = name
     if deploy_repo_scan_data == "enable":
         body["deploy_repo_scan_data"] = True

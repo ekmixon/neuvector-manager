@@ -45,9 +45,7 @@ def _list_dlp_derived_rule_display_format(rule):
     f = "patterns"
     if f in rule:
         fo = output.key_output(f)
-        s = ""
-        for crt in rule[f]:
-            s += "%s\n" % (crt)
+        s = "".join("%s\n" % (crt) for crt in rule[f])
         rule[fo] = s.rstrip("\n")
 
 
@@ -55,10 +53,7 @@ def _list_dlp_multival_display_format(rule, f):
     sens = ""
     if f in rule:
         for s in rule[f]:
-            if sens == "":
-                sens = s
-            else:
-                sens = sens + ", " + s
+            sens = s if sens == "" else f"{sens}, {s}"
     rule[f] = sens
 
 
@@ -66,10 +61,7 @@ def _list_dlp_multival_display_format2str(rule, f):
     sens = ""
     if f in rule:
         for s in rule[f]:
-            if sens == "":
-                sens = str(s)
-            else:
-                sens = sens + ", " + str(s)
+            sens = str(s) if sens == "" else f"{sens}, {str(s)}"
     rule[f] = sens
 
 
@@ -77,10 +69,7 @@ def _list_dlp_multival_group_list_display_format(rule, f):
     sens = ""
     if f in rule:
         for s in rule[f]:
-            if sens == "":
-                sens = s
-            else:
-                sens = sens + ", " + s
+            sens = s if sens == "" else f"{sens}, {s}"
     rule[f] = sens
 
 
@@ -134,7 +123,7 @@ def detail(data, name):
     else:
         _list_dlp_multival_display_format(rentry, fdr)
 
-    click.echo("Used by sensor(s): %s" % rentry[fdr])
+    click.echo(f"Used by sensor(s): {rentry[fdr]}")
 
     columns = ("name", "id", "patterns")
     for r in rentry["rules"]:
@@ -163,12 +152,12 @@ def _output_dlp_one_derived(p):
                (id[:output.SHORT_ID_LENGTH], p["dlp_workload"]["name"], p["mode"], p["defact"], p["applydir"],
                 len(p["dlp_rules"]), len(p["dlp_macs"]), p["ruletype"]))
     for mac in p["dlp_macs"]:
-        click.echo("mac==> %s" % (mac))
+        click.echo(f"mac==> {mac}")
 
     fld = "rids"
     if fld in p:
         _list_dlp_multival_display_format2str(p, fld)
-        click.echo("rid==> %s" % (p[fld]))
+        click.echo(f"rid==> {p[fld]}")
 
     columns = ("name", "action")
     output.list(columns, p["dlp_rules"])
@@ -176,7 +165,7 @@ def _output_dlp_one_derived(p):
     wld = "wafrids"
     if wld in p:
         _list_dlp_multival_display_format2str(p, wld)
-        click.echo("wafrid==> %s" % (p[wld]))
+        click.echo(f"wafrid==> {p[wld]}")
 
     columns = ("name", "action")
     output.list(columns, p["waf_rules"])
@@ -191,12 +180,14 @@ def derivedwl(data, enforcer, container):
     try:
         filter = {}
         if enforcer:
-            obj = utils.get_managed_object(data.client, "enforcer", "enforcer", enforcer)
-            if obj:
+            if obj := utils.get_managed_object(
+                data.client, "enforcer", "enforcer", enforcer
+            ):
                 filter["enforcer"] = obj["id"]
         if container:
-            obj = utils.get_managed_object(data.client, "workload", "workload", container)
-            if obj:
+            if obj := utils.get_managed_object(
+                data.client, "workload", "workload", container
+            ):
                 filter["workload"] = obj["id"]
 
         dlp_derived = data.client.list("debug/dlp/wlrule", "rule", **filter)
@@ -215,8 +206,9 @@ def derived(data, enforcer):
     try:
         filter = {}
         if enforcer:
-            obj = utils.get_managed_object(data.client, "enforcer", "enforcer", enforcer)
-            if obj:
+            if obj := utils.get_managed_object(
+                data.client, "enforcer", "enforcer", enforcer
+            ):
                 filter["enforcer"] = obj["id"]
 
         dlp_derived_rule = data.client.list("debug/dlp/rule", "rule", **filter)
@@ -239,8 +231,9 @@ def derivedmac(data, enforcer):
     try:
         filter = {}
         if enforcer:
-            obj = utils.get_managed_object(data.client, "enforcer", "enforcer", enforcer)
-            if obj:
+            if obj := utils.get_managed_object(
+                data.client, "enforcer", "enforcer", enforcer
+            ):
                 filter["enforcer"] = obj["id"]
 
         dlp_derived_mac = data.client.list("debug/dlp/mac", "mac", **filter)
@@ -269,20 +262,20 @@ def show_dlp_sensor(ctx, data, page, sort_dir):
     while True:
         drs = data.client.list("dlp/sensor", "sensor", **args)
         for dr in drs:
-            click.echo("Sensor: %s" % (dr["name"]))
+            click.echo(f'Sensor: {dr["name"]}')
 
             gr = "groups"
             if gr not in dr:
                 dr[gr] = ""
             else:
                 _list_dlp_multival_group_list_display_format(dr, gr)
-            click.echo("Used by group(s):%s" % (dr[gr]))
+            click.echo(f"Used by group(s):{dr[gr]}")
 
             gr = "comment"
             if gr not in dr:
                 dr[gr] = ""
             click.echo("Comment:\"%s\"" % (dr[gr]))
-            click.echo("Type: %s" % (client.CfgTypeDisplay[dr["cfg_type"]]))
+            click.echo(f'Type: {client.CfgTypeDisplay[dr["cfg_type"]]}')
 
             gr = "predefine"
             if gr not in dr:
@@ -292,15 +285,15 @@ def show_dlp_sensor(ctx, data, page, sort_dir):
             else:
                 click.echo("Predefined:False")
 
-            columns = ("name", "patterns")
-
             fdr = "rules"
             if fdr not in dr:
                 dr[fdr] = ""
-                click.echo("%s" % (dr[fdr]))
+                click.echo(f"{dr[fdr]}")
             else:
                 for dre in dr[fdr]:
                     _list_dlp_rule_display_format(dre)
+                columns = ("name", "patterns")
+
                 output.list(columns, dr["rules"])
 
         if args["limit"] > 0 and len(drs) < args["limit"]:
@@ -329,13 +322,13 @@ def detail(data, page, sort_dir, name):
         dr[gr] = ""
     else:
         _list_dlp_multival_group_list_display_format(dr, gr)
-    click.echo("Used by group(s):%s" % (dr[gr]))
+    click.echo(f"Used by group(s):{dr[gr]}")
 
     gr = "comment"
     if gr not in dr:
         dr[gr] = ""
     click.echo("Comment:\"%s\"" % (dr[gr]))
-    click.echo("Type: %s" % (client.CfgTypeDisplay[dr["cfg_type"]]))
+    click.echo(f'Type: {client.CfgTypeDisplay[dr["cfg_type"]]}')
 
     gr = "predefine"
     if gr not in dr:
@@ -348,7 +341,7 @@ def detail(data, page, sort_dir, name):
     fdr = "rules"
     if fdr not in dr:
         dr[fdr] = ""
-        click.echo("%s" % (dr[fdr]))
+        click.echo(f"{dr[fdr]}")
     else:
         for r in dr["rules"]:
             _list_dlp_rule_display_format(r)
@@ -382,7 +375,7 @@ def _add_dlp_criterion(key, value, context):
 def _add_dlp_criteria(pct, key, value, context):
     e = _add_dlp_criterion(key, value, context)
     if not e:
-        click.echo("Error: Invalid input of --%s %s" % (key, value))
+        click.echo(f"Error: Invalid input of --{key} {value}")
         return False
     pct.append(e)
     return True
@@ -419,7 +412,7 @@ def create_dlp_sensor_rule(data, name, pattern, context):
     if not _add_dlp_criteria(pct, "pattern", pattern, context):
         return
 
-    if len(pct) == 0:
+    if not pct:
         click.echo("Error: Must create dlp rule with pattern.")
         return
 
@@ -505,7 +498,7 @@ def set_dlp_sensor_rule(data, name, pattern, context):
     if not _add_dlp_criteria(pct, "pattern", pattern, context):
         return
 
-    if len(pct) == 0:
+    if not pct:
         click.echo("Error: Must create dlp rule with pattern.")
         return
 

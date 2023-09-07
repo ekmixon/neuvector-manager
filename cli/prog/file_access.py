@@ -13,8 +13,7 @@ def _list_filter_display_format(flt):
     apps = flt["applications"]
     v = []
     if apps != None:
-        for a in apps:
-            v.append(a["name"])
+        v.extend(a["name"] for a in apps)
     flt["applications"] = v
 
 
@@ -38,12 +37,12 @@ def show_file_access_profile(ctx, data, scope, predefined):
     args = {}
     if predefined:
         args['predefined'] = True
-    if scope == 'fed' or scope == 'local':
+    if scope in ['fed', 'local']:
         args['scope'] = scope
 
     pfs = data.client.list("file_monitor", "profile", **args)
     for p in pfs:
-        click.echo("Group: %s" % p["group"])
+        click.echo(f'Group: {p["group"]}')
         columns = ("filter", "recursive", "applications", "behavior", "type")
         filters = p["filters"]
         for filter in filters:
@@ -79,8 +78,7 @@ def file(data, id_or_name):
     if not wl:
         return
 
-    filter = {}
-    filter["workload"] = wl["id"]
+    filter = {"workload": wl["id"]}
     try:
         resp = data.client.show("file_monitor_file", None, None, **filter)
     except client.ObjectNotFound:
@@ -109,15 +107,15 @@ def set_file_access(data):
 def set_file_access_profile(data, group, add_filter, recursive, option):
     """Create file monitor filters for group."""
 
-    if add_filter == None:
+    if add_filter is None:
         click.echo("Missing filter")
         return
-    config = {}
-    recur = False
-    if recursive == 'enable':
-        recur = True
-
-    config["add_filters"] = [{"filter": add_filter, "recursive": recur, "behavior": option}]
+    recur = recursive == 'enable'
+    config = {
+        "add_filters": [
+            {"filter": add_filter, "recursive": recur, "behavior": option}
+        ]
+    }
     ret = data.client.config("file_monitor", group, {"config": config})
 
 
@@ -144,7 +142,7 @@ def set_file_access_rule(data, group, flt, path, recursive, option):
         if ft["filter"] == flt:
             nft = ft
             apps = nft["applications"]
-            if apps == None:
+            if apps is None:
                 apps = [path]
             else:
                 apps.append(path)
@@ -155,8 +153,7 @@ def set_file_access_rule(data, group, flt, path, recursive, option):
                     recur = True
                 nft["recursive"] = recur
             nft["behavior"] = option
-            config = {}
-            config["update_filters"] = [nft]
+            config = {"update_filters": [nft]}
             ret = data.client.config("file_monitor", group, {"config": config})
             return
 
@@ -176,10 +173,9 @@ def delete_file_access(data):
 def delete_file_access_profile(data, group, del_filter):
     """Delete file monitor profile. """
 
-    if del_filter == None:
+    if del_filter is None:
         click.echo("Missing filter")
         return
-    config = {}
+    config = {"delete_filters": [{"filter": del_filter}]}
 
-    config["delete_filters"] = [{"filter": del_filter}]
     ret = data.client.config("file_monitor", group, {"config": config})
